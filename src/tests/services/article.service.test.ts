@@ -7,7 +7,7 @@ import {
 
 describe('ArticleService', () => {
   describe('deleteComment', () => {
-    test('should throw an error ', () => {
+    test('should throw an error when comment does not exist', () => {
       // Given
       const id = 123;
       const idUser = 456;
@@ -18,6 +18,53 @@ describe('ArticleService', () => {
 
       // Then
       expect(deleteComment(id, idUser)).rejects.toThrowError();
+    });
+
+    test('should throw a forbidden error when user tries to delete another user comment', async () => {
+      // Given
+      const id = 123;
+      const idUser = 456;
+
+      // When
+      // @ts-ignore
+      prismaMock.comment.findFirst.mockResolvedValue({
+        author: {
+          id: 999,
+          username: 'other-user',
+        },
+      });
+
+      // Then
+      await expect(deleteComment(id, idUser)).rejects.toMatchObject({
+        status: 403,
+      });
+    });
+
+    test('should delete the comment when user is the author', async () => {
+      // Given
+      const id = 123;
+      const idUser = 456;
+
+      // When
+      // @ts-ignore
+      prismaMock.comment.findFirst.mockResolvedValue({
+        author: {
+          id: idUser,
+          username: 'author-user',
+        },
+      });
+      // @ts-ignore
+      prismaMock.comment.delete.mockResolvedValue({
+        id,
+      });
+
+      // Then
+      await expect(deleteComment(id, idUser)).resolves.toBeUndefined();
+      expect(prismaMock.comment.delete).toHaveBeenCalledWith({
+        where: {
+          id,
+        },
+      });
     });
   });
 

@@ -528,9 +528,6 @@ export const deleteComment = async (id: number, userId: number) => {
   const comment = await prisma.comment.findFirst({
     where: {
       id,
-      author: {
-        id: userId,
-      },
     },
     select: {
       author: {
@@ -547,6 +544,9 @@ export const deleteComment = async (id: number, userId: number) => {
   }
 
   if (comment.author.id !== userId) {
+    console.error(
+      `Unauthorized comment deletion attempt: User ${userId} tried to delete comment ${id} owned by user ${comment.author.id}`,
+    );
     throw new HttpException(403, {
       message: 'You are not authorized to delete this comment',
     });
