@@ -5,6 +5,23 @@ import profileMapper from '../profile/profile.utils';
 import articleMapper from './article.mapper';
 import { Tag } from '../tag/tag.model';
 
+const ARTICLE_TITLE_MAX_LENGTH = 255;
+
+const validateArticleTitle = (title: string) => {
+  if (!title) {
+    throw new HttpException(422, { errors: { title: ["can't be blank"] } });
+  }
+
+  if (title.length > ARTICLE_TITLE_MAX_LENGTH) {
+    console.warn(
+      `Article title validation failed: length ${title.length} exceeds maximum of ${ARTICLE_TITLE_MAX_LENGTH}`,
+    );
+    throw new HttpException(422, {
+      errors: { title: [`is too long (maximum is ${ARTICLE_TITLE_MAX_LENGTH} characters)`] },
+    });
+  }
+};
+
 const buildFindAllQuery = (query: any, id: number | undefined) => {
   const queries: any = [];
   const orAuthorQuery = [];
@@ -163,9 +180,7 @@ export const createArticle = async (article: any, id: number) => {
   const { title, description, body, tagList } = article;
   const tags = Array.isArray(tagList) ? tagList : [];
 
-  if (!title) {
-    throw new HttpException(422, { errors: { title: ["can't be blank"] } });
-  }
+  validateArticleTitle(title);
 
   if (!description) {
     throw new HttpException(422, { errors: { description: ["can't be blank"] } });
@@ -190,52 +205,57 @@ export const createArticle = async (article: any, id: number) => {
     throw new HttpException(422, { errors: { title: ['must be unique'] } });
   }
 
-  const {
-    authorId,
-    id: articleId,
-    ...createdArticle
-  } = await prisma.article.create({
-    data: {
-      title,
-      description,
-      body,
-      slug,
-      tagList: {
-        connectOrCreate: tags.map((tag: string) => ({
-          create: { name: tag },
-          where: { name: tag },
-        })),
-      },
-      author: {
-        connect: {
-          id: id,
+  try {
+    const {
+      authorId,
+      id: articleId,
+      ...createdArticle
+    } = await prisma.article.create({
+      data: {
+        title,
+        description,
+        body,
+        slug,
+        tagList: {
+          connectOrCreate: tags.map((tag: string) => ({
+            create: { name: tag },
+            where: { name: tag },
+          })),
+        },
+        author: {
+          connect: {
+            id: id,
+          },
         },
       },
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
+      include: {
+        tagList: {
+          select: {
+            name: true,
+          },
+        },
+        author: {
+          select: {
+            username: true,
+            bio: true,
+            image: true,
+            followedBy: true,
+          },
+        },
+        favoritedBy: true,
+        _count: {
+          select: {
+            favoritedBy: true,
+          },
         },
       },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
+    });
 
-  return articleMapper(createdArticle, id);
+    return articleMapper(createdArticle, id);
+  } catch (error: any) {
+    console.error('Unexpected error creating article', error);
+    throw error;
+  }
 };
 
 export const getArticle = async (slug: string, id?: number) => {
@@ -314,6 +334,7 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
   }
 
   if (article.title) {
+    validateArticleTitle(article.title);
     newSlug = `${slugify(article.title)}-${id}`;
 
     if (newSlug !== slug) {
