@@ -1,0 +1,1 @@
+ALTER TABLE "Article" ADD COLUMN "isDraft" BOOLEAN NOT NULL DEFAULT false;

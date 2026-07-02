@@ -40,6 +40,9 @@ const buildFindAllQuery = (query: any, id: number | undefined) => {
   };
 
   queries.push(authorQuery);
+  queries.push({
+    isDraft: false,
+  });
 
   if ('tag' in query) {
     queries.push({
@@ -116,6 +119,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
       author: {
         followedBy: { some: { id: id } },
       },
+      isDraft: false,
     },
   });
 
@@ -124,6 +128,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
       author: {
         followedBy: { some: { id: id } },
       },
+      isDraft: false,
     },
     orderBy: {
       createdAt: 'desc',
@@ -160,7 +165,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
 };
 
 export const createArticle = async (article: any, id: number) => {
-  const { title, description, body, tagList } = article;
+  const { title, description, body, tagList, isDraft } = article;
   const tags = Array.isArray(tagList) ? tagList : [];
 
   if (!title) {
@@ -200,6 +205,7 @@ export const createArticle = async (article: any, id: number) => {
       description,
       body,
       slug,
+      isDraft: Boolean(isDraft),
       tagList: {
         connectOrCreate: tags.map((tag: string) => ({
           create: { name: tag },
@@ -267,6 +273,10 @@ export const getArticle = async (slug: string, id?: number) => {
   });
 
   if (!article) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
+  if (article.isDraft && article.authorId !== id) {
     throw new HttpException(404, { errors: { article: ['not found'] } });
   }
 
@@ -350,6 +360,7 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
       ...(article.title ? { title: article.title } : {}),
       ...(article.body ? { body: article.body } : {}),
       ...(article.description ? { description: article.description } : {}),
+      ...(typeof article.isDraft === 'boolean' ? { isDraft: article.isDraft } : {}),
       ...(newSlug ? { slug: newSlug } : {}),
       updatedAt: new Date(),
       tagList: {
@@ -481,8 +492,18 @@ export const addComment = async (body: string, slug: string, id: number) => {
     },
     select: {
       id: true,
+      isDraft: true,
+      authorId: true,
     },
   });
+
+  if (!article) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
+  if (article.isDraft && article.authorId !== id) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
 
   const comment = await prisma.comment.create({
     data: {
@@ -560,6 +581,24 @@ export const deleteComment = async (id: number, userId: number) => {
 };
 
 export const favoriteArticle = async (slugPayload: string, id: number) => {
+  const existingArticle = await prisma.article.findUnique({
+    where: {
+      slug: slugPayload,
+    },
+    select: {
+      isDraft: true,
+      authorId: true,
+    },
+  });
+
+  if (!existingArticle) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
+  if (existingArticle.isDraft && existingArticle.authorId !== id) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
   const { _count, ...article } = await prisma.article.update({
     where: {
       slug: slugPayload,
@@ -606,6 +645,24 @@ export const favoriteArticle = async (slugPayload: string, id: number) => {
 };
 
 export const unfavoriteArticle = async (slugPayload: string, id: number) => {
+  const existingArticle = await prisma.article.findUnique({
+    where: {
+      slug: slugPayload,
+    },
+    select: {
+      isDraft: true,
+      authorId: true,
+    },
+  });
+
+  if (!existingArticle) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
+  if (existingArticle.isDraft && existingArticle.authorId !== id) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
   const { _count, ...article } = await prisma.article.update({
     where: {
       slug: slugPayload,
