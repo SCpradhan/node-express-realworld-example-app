@@ -40,6 +40,9 @@ const buildFindAllQuery = (query: any, id: number | undefined) => {
   };
 
   queries.push(authorQuery);
+  queries.push({
+    published: true,
+  });
 
   if ('tag' in query) {
     queries.push({
@@ -113,6 +116,7 @@ export const getArticles = async (query: any, id?: number) => {
 export const getFeed = async (offset: number, limit: number, id: number) => {
   const articlesCount = await prisma.article.count({
     where: {
+      published: true,
       author: {
         followedBy: { some: { id: id } },
       },
@@ -121,6 +125,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
 
   const articles = await prisma.article.findMany({
     where: {
+      published: true,
       author: {
         followedBy: { some: { id: id } },
       },
@@ -160,7 +165,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
 };
 
 export const createArticle = async (article: any, id: number) => {
-  const { title, description, body, tagList } = article;
+  const { title, description, body, tagList, published = true } = article;
   const tags = Array.isArray(tagList) ? tagList : [];
 
   if (!title) {
@@ -200,6 +205,7 @@ export const createArticle = async (article: any, id: number) => {
       description,
       body,
       slug,
+      published,
       tagList: {
         connectOrCreate: tags.map((tag: string) => ({
           create: { name: tag },
@@ -266,7 +272,7 @@ export const getArticle = async (slug: string, id?: number) => {
     },
   });
 
-  if (!article) {
+  if (!article || (!article.published && article.authorId !== id)) {
     throw new HttpException(404, { errors: { article: ['not found'] } });
   }
 
@@ -350,6 +356,7 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
       ...(article.title ? { title: article.title } : {}),
       ...(article.body ? { body: article.body } : {}),
       ...(article.description ? { description: article.description } : {}),
+      ...(typeof article.published === 'boolean' ? { published: article.published } : {}),
       ...(newSlug ? { slug: newSlug } : {}),
       updatedAt: new Date(),
       tagList: {
