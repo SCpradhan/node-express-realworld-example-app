@@ -5,6 +5,7 @@ const articleMapper = (article: any, id?: number) => ({
   title: article.title,
   description: article.description,
   body: article.body,
+  isDraft: article.isDraft,
   tagList: article.tagList.map((tag: any) => tag.name),
   createdAt: article.createdAt,
   updatedAt: article.updatedAt,
