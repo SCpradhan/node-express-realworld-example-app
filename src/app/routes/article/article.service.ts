@@ -5,6 +5,9 @@ import profileMapper from '../profile/profile.utils';
 import articleMapper from './article.mapper';
 import { Tag } from '../tag/tag.model';
 
+const MAX_ARTICLE_TITLE_LENGTH = 255;
+const MAX_ARTICLE_SLUG_LENGTH = 255;
+
 const buildFindAllQuery = (query: any, id: number | undefined) => {
   const queries: any = [];
   const orAuthorQuery = [];
@@ -64,6 +67,65 @@ const buildFindAllQuery = (query: any, id: number | undefined) => {
   }
 
   return queries;
+};
+
+const validateArticleTitle = (title: any) => {
+  if (!title) {
+    throw new HttpException(422, { errors: { title: ["can't be blank"] } });
+  }
+
+  if (typeof title !== 'string') {
+    throw new HttpException(422, { errors: { title: ['is invalid'] } });
+  }
+
+  if (title.length > MAX_ARTICLE_TITLE_LENGTH) {
+    throw new HttpException(422, {
+      errors: {
+        title: [`must be at most ${MAX_ARTICLE_TITLE_LENGTH} characters`],
+      },
+    });
+  }
+};
+
+const buildArticleSlug = (title: string, id: number) => {
+  const slug = `${slugify(title)}-${id}`;
+
+  if (slug.length > MAX_ARTICLE_SLUG_LENGTH) {
+    throw new HttpException(422, {
+      errors: {
+        title: ['is too long to generate a valid slug'],
+      },
+    });
+  }
+
+  return slug;
+};
+
+const isPrismaValidationError = (error: any) => {
+  return (
+    error &&
+    typeof error === 'object' &&
+    (error.name === 'PrismaClientValidationError' ||
+      error.name === 'PrismaClientKnownRequestError' ||
+      error.code === 'P2000' ||
+      error.code === 'P2002')
+  );
+};
+
+const rethrowAsValidationError = (error: any) => {
+  if (!isPrismaValidationError(error)) {
+    throw error;
+  }
+
+  if (error.code === 'P2002') {
+    throw new HttpException(422, { errors: { title: ['must be unique'] } });
+  }
+
+  throw new HttpException(422, {
+    errors: {
+      title: ['is invalid'],
+    },
+  });
 };
 
 export const getArticles = async (query: any, id?: number) => {
@@ -163,9 +225,7 @@ export const createArticle = async (article: any, id: number) => {
   const { title, description, body, tagList } = article;
   const tags = Array.isArray(tagList) ? tagList : [];
 
-  if (!title) {
-    throw new HttpException(422, { errors: { title: ["can't be blank"] } });
-  }
+  validateArticleTitle(title);
 
   if (!description) {
     throw new HttpException(422, { errors: { description: ["can't be blank"] } });
@@ -175,7 +235,7 @@ export const createArticle = async (article: any, id: number) => {
     throw new HttpException(422, { errors: { body: ["can't be blank"] } });
   }
 
-  const slug = `${slugify(title)}-${id}`;
+  const slug = buildArticleSlug(title, id);
 
   const existingTitle = await prisma.article.findUnique({
     where: {
@@ -190,52 +250,56 @@ export const createArticle = async (article: any, id: number) => {
     throw new HttpException(422, { errors: { title: ['must be unique'] } });
   }
 
-  const {
-    authorId,
-    id: articleId,
-    ...createdArticle
-  } = await prisma.article.create({
-    data: {
-      title,
-      description,
-      body,
-      slug,
-      tagList: {
-        connectOrCreate: tags.map((tag: string) => ({
-          create: { name: tag },
-          where: { name: tag },
-        })),
-      },
-      author: {
-        connect: {
-          id: id,
+  try {
+    const {
+      authorId,
+      id: articleId,
+      ...createdArticle
+    } = await prisma.article.create({
+      data: {
+        title,
+        description,
+        body,
+        slug,
+        tagList: {
+          connectOrCreate: tags.map((tag: string) => ({
+            create: { name: tag },
+            where: { name: tag },
+          })),
+        },
+        author: {
+          connect: {
+            id: id,
+          },
         },
       },
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
+      include: {
+        tagList: {
+          select: {
+            name: true,
+          },
+        },
+        author: {
+          select: {
+            username: true,
+            bio: true,
+            image: true,
+            followedBy: true,
+          },
+        },
+        favoritedBy: true,
+        _count: {
+          select: {
+            favoritedBy: true,
+          },
         },
       },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
+    });
 
-  return articleMapper(createdArticle, id);
+    return articleMapper(createdArticle, id);
+  } catch (error: any) {
+    rethrowAsValidationError(error);
+  }
 };
 
 export const getArticle = async (slug: string, id?: number) => {
@@ -314,7 +378,8 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
   }
 
   if (article.title) {
-    newSlug = `${slugify(article.title)}-${id}`;
+    validateArticleTitle(article.title);
+    newSlug = buildArticleSlug(article.title, id);
 
     if (newSlug !== slug) {
       const existingTitle = await prisma.article.findFirst({
@@ -342,44 +407,48 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
 
   await disconnectArticlesTags(slug);
 
-  const updatedArticle = await prisma.article.update({
-    where: {
-      slug,
-    },
-    data: {
-      ...(article.title ? { title: article.title } : {}),
-      ...(article.body ? { body: article.body } : {}),
-      ...(article.description ? { description: article.description } : {}),
-      ...(newSlug ? { slug: newSlug } : {}),
-      updatedAt: new Date(),
-      tagList: {
-        connectOrCreate: tagList,
+  try {
+    const updatedArticle = await prisma.article.update({
+      where: {
+        slug,
       },
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
+      data: {
+        ...(article.title ? { title: article.title } : {}),
+        ...(article.body ? { body: article.body } : {}),
+        ...(article.description ? { description: article.description } : {}),
+        ...(newSlug ? { slug: newSlug } : {}),
+        updatedAt: new Date(),
+        tagList: {
+          connectOrCreate: tagList,
         },
       },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
+      include: {
+        tagList: {
+          select: {
+            name: true,
+          },
+        },
+        author: {
+          select: {
+            username: true,
+            bio: true,
+            image: true,
+            followedBy: true,
+          },
+        },
+        favoritedBy: true,
+        _count: {
+          select: {
+            favoritedBy: true,
+          },
         },
       },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
+    });
 
-  return articleMapper(updatedArticle, id);
+    return articleMapper(updatedArticle, id);
+  } catch (error: any) {
+    rethrowAsValidationError(error);
+  }
 };
 
 export const deleteArticle = async (slug: string, id: number) => {
