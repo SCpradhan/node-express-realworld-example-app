@@ -5,6 +5,24 @@ import profileMapper from '../profile/profile.utils';
 import articleMapper from './article.mapper';
 import { Tag } from '../tag/tag.model';
 
+const MAX_ARTICLE_TITLE_LENGTH = 255;
+
+const validateArticleTitle = (title: any) => {
+  if (!title) {
+    throw new HttpException(422, { errors: { title: ["can't be blank"] } });
+  }
+
+  if (typeof title !== 'string') {
+    throw new HttpException(422, { errors: { title: ['is invalid'] } });
+  }
+
+  if (title.length > MAX_ARTICLE_TITLE_LENGTH) {
+    throw new HttpException(422, {
+      errors: { title: [`is too long (maximum is ${MAX_ARTICLE_TITLE_LENGTH} characters)`] },
+    });
+  }
+};
+
 const buildFindAllQuery = (query: any, id: number | undefined) => {
   const queries: any = [];
   const orAuthorQuery = [];
@@ -163,9 +181,7 @@ export const createArticle = async (article: any, id: number) => {
   const { title, description, body, tagList } = article;
   const tags = Array.isArray(tagList) ? tagList : [];
 
-  if (!title) {
-    throw new HttpException(422, { errors: { title: ["can't be blank"] } });
-  }
+  validateArticleTitle(title);
 
   if (!description) {
     throw new HttpException(422, { errors: { description: ["can't be blank"] } });
@@ -314,6 +330,7 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
   }
 
   if (article.title) {
+    validateArticleTitle(article.title);
     newSlug = `${slugify(article.title)}-${id}`;
 
     if (newSlug !== slug) {
