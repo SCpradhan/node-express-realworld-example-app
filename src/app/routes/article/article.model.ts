@@ -7,4 +7,5 @@ export interface Article {
   description: string;
   comments: Comment[];
   favorited: boolean;
+  published: boolean;
 }

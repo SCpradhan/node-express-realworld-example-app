@@ -9,6 +9,7 @@ import {
   getArticle,
   getArticles,
   getCommentsByArticle,
+  getDraftArticles,
   getFeed,
   unfavoriteArticle,
   updateArticle,
@@ -30,6 +31,23 @@ const router = Router();
 router.get('/articles', auth.optional, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await getArticles(req.query, req.auth?.user?.id);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Get current user's draft articles
+ * @auth required
+ * @route {GET} /articles/drafts
+ * @queryparam offset number of articles dismissed from the first one
+ * @queryparam limit number of articles returned
+ * @returns articles: list of draft articles
+ */
+router.get('/articles/drafts', auth.required, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await getDraftArticles(req.query, req.auth?.user?.id);
     res.json(result);
   } catch (error) {
     next(error);
@@ -66,6 +84,7 @@ router.get(
  * @bodyparam  description
  * @bodyparam  body
  * @bodyparam  tagList list of tags
+ * @bodyparam  published boolean draft/published state
  * @returns article created article
  */
 router.post('/articles', auth.required, async (req: Request, res: Response, next: NextFunction) => {
@@ -105,6 +124,7 @@ router.get(
  * @bodyparam title new title
  * @bodyparam description new description
  * @bodyparam body new content
+ * @bodyparam published boolean draft/published state
  * @returns article updated article
  */
 router.put(

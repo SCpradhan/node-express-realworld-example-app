@@ -5,8 +5,36 @@ import profileMapper from '../profile/profile.utils';
 import articleMapper from './article.mapper';
 import { Tag } from '../tag/tag.model';
 
+const includeArticleRelations = {
+  tagList: {
+    select: {
+      name: true,
+    },
+  },
+  author: {
+    select: {
+      username: true,
+      bio: true,
+      image: true,
+      followedBy: true,
+    },
+  },
+  favoritedBy: true,
+  _count: {
+    select: {
+      favoritedBy: true,
+    },
+  },
+};
+
+const validatePublished = (published: unknown) => {
+  if (published !== undefined && typeof published !== 'boolean') {
+    throw new HttpException(422, { errors: { published: ['must be a boolean'] } });
+  }
+};
+
 const buildFindAllQuery = (query: any, id: number | undefined) => {
-  const queries: any = [];
+  const queries: any[] = [];
   const orAuthorQuery = [];
   const andAuthorQuery = [];
 
@@ -40,6 +68,30 @@ const buildFindAllQuery = (query: any, id: number | undefined) => {
   };
 
   queries.push(authorQuery);
+
+  if (query.author && id) {
+    queries.push({
+      OR: [
+        { published: true },
+        {
+          AND: [
+            { published: false },
+            {
+              author: {
+                id: {
+                  equals: id,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+  } else {
+    queries.push({
+      published: true,
+    });
+  }
 
   if ('tag' in query) {
     queries.push({
@@ -81,27 +133,34 @@ export const getArticles = async (query: any, id?: number) => {
     },
     skip: Number(query.offset) || 0,
     take: Number(query.limit) || 10,
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
+    include: includeArticleRelations,
+  });
+
+  return {
+    articles: articles.map((article: any) => articleMapper(article, id)),
+    articlesCount,
+  };
+};
+
+export const getDraftArticles = async (query: any, id: number) => {
+  const articlesCount = await prisma.article.count({
+    where: {
+      authorId: id,
+      published: false,
     },
+  });
+
+  const articles = await prisma.article.findMany({
+    where: {
+      authorId: id,
+      published: false,
+    },
+    orderBy: {
+      updatedAt: 'desc',
+    },
+    skip: Number(query.offset) || 0,
+    take: Number(query.limit) || 10,
+    include: includeArticleRelations,
   });
 
   return {
@@ -113,6 +172,7 @@ export const getArticles = async (query: any, id?: number) => {
 export const getFeed = async (offset: number, limit: number, id: number) => {
   const articlesCount = await prisma.article.count({
     where: {
+      published: true,
       author: {
         followedBy: { some: { id: id } },
       },
@@ -121,6 +181,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
 
   const articles = await prisma.article.findMany({
     where: {
+      published: true,
       author: {
         followedBy: { some: { id: id } },
       },
@@ -130,27 +191,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
     },
     skip: offset || 0,
     take: limit || 10,
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
+    include: includeArticleRelations,
   });
 
   return {
@@ -160,8 +201,10 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
 };
 
 export const createArticle = async (article: any, id: number) => {
-  const { title, description, body, tagList } = article;
+  const { title, description, body, tagList, published } = article;
   const tags = Array.isArray(tagList) ? tagList : [];
+
+  validatePublished(published);
 
   if (!title) {
     throw new HttpException(422, { errors: { title: ["can't be blank"] } });
@@ -200,6 +243,7 @@ export const createArticle = async (article: any, id: number) => {
       description,
       body,
       slug,
+      published: published ?? true,
       tagList: {
         connectOrCreate: tags.map((tag: string) => ({
           create: { name: tag },
@@ -212,27 +256,7 @@ export const createArticle = async (article: any, id: number) => {
         },
       },
     },
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
+    include: includeArticleRelations,
   });
 
   return articleMapper(createdArticle, id);
@@ -243,7 +267,16 @@ export const getArticle = async (slug: string, id?: number) => {
     where: {
       slug,
     },
-    include: {
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+      body: true,
+      published: true,
+      authorId: true,
+      createdAt: true,
+      updatedAt: true,
       tagList: {
         select: {
           name: true,
@@ -270,6 +303,10 @@ export const getArticle = async (slug: string, id?: number) => {
     throw new HttpException(404, { errors: { article: ['not found'] } });
   }
 
+  if (!article.published && article.authorId !== id) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
   return articleMapper(article, id);
 };
 
@@ -288,6 +325,8 @@ const disconnectArticlesTags = async (slug: string) => {
 
 export const updateArticle = async (article: any, slug: string, id: number) => {
   let newSlug = null;
+
+  validatePublished(article.published);
 
   const existingArticle = await await prisma.article.findFirst({
     where: {
@@ -350,33 +389,14 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
       ...(article.title ? { title: article.title } : {}),
       ...(article.body ? { body: article.body } : {}),
       ...(article.description ? { description: article.description } : {}),
+      ...(article.published !== undefined ? { published: article.published } : {}),
       ...(newSlug ? { slug: newSlug } : {}),
       updatedAt: new Date(),
       tagList: {
         connectOrCreate: tagList,
       },
     },
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
+    include: includeArticleRelations,
   });
 
   return articleMapper(updatedArticle, id);
