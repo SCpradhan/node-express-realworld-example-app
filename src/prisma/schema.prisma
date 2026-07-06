@@ -16,6 +16,7 @@ model Article {
   body        String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @default(now())
+  isDraft     Boolean   @default(false)
   tagList     Tag[]
   author      User      @relation("UserArticles", fields: [authorId], onDelete: Cascade, references: [id])
   authorId    Int
