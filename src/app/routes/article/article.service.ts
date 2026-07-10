@@ -40,6 +40,9 @@ const buildFindAllQuery = (query: any, id: number | undefined) => {
   };
 
   queries.push(authorQuery);
+  queries.push({
+    draft: false,
+  });
 
   if ('tag' in query) {
     queries.push({
@@ -113,6 +116,7 @@ export const getArticles = async (query: any, id?: number) => {
 export const getFeed = async (offset: number, limit: number, id: number) => {
   const articlesCount = await prisma.article.count({
     where: {
+      draft: false,
       author: {
         followedBy: { some: { id: id } },
       },
@@ -121,6 +125,7 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
 
   const articles = await prisma.article.findMany({
     where: {
+      draft: false,
       author: {
         followedBy: { some: { id: id } },
       },
@@ -160,22 +165,23 @@ export const getFeed = async (offset: number, limit: number, id: number) => {
 };
 
 export const createArticle = async (article: any, id: number) => {
-  const { title, description, body, tagList } = article;
+  const { title, description, body, tagList, draft = false } = article;
   const tags = Array.isArray(tagList) ? tagList : [];
 
-  if (!title) {
+  if (!draft && !title) {
     throw new HttpException(422, { errors: { title: ["can't be blank"] } });
   }
 
-  if (!description) {
+  if (!draft && !description) {
     throw new HttpException(422, { errors: { description: ["can't be blank"] } });
   }
 
-  if (!body) {
+  if (!draft && !body) {
     throw new HttpException(422, { errors: { body: ["can't be blank"] } });
   }
 
-  const slug = `${slugify(title)}-${id}`;
+  const effectiveTitle = title || 'Untitled Draft';
+  const slug = `${slugify(effectiveTitle)}-${id}`;
 
   const existingTitle = await prisma.article.findUnique({
     where: {
@@ -196,10 +202,11 @@ export const createArticle = async (article: any, id: number) => {
     ...createdArticle
   } = await prisma.article.create({
     data: {
-      title,
-      description,
-      body,
+      title: effectiveTitle,
+      description: description || '',
+      body: body || '',
       slug,
+      draft,
       tagList: {
         connectOrCreate: tags.map((tag: string) => ({
           create: { name: tag },
@@ -251,6 +258,7 @@ export const getArticle = async (slug: string, id?: number) => {
       },
       author: {
         select: {
+          id: true,
           username: true,
           bio: true,
           image: true,
@@ -267,6 +275,10 @@ export const getArticle = async (slug: string, id?: number) => {
   });
 
   if (!article) {
+    throw new HttpException(404, { errors: { article: ['not found'] } });
+  }
+
+  if (article.draft && article.author.id !== id) {
     throw new HttpException(404, { errors: { article: ['not found'] } });
   }
 
@@ -350,6 +362,7 @@ export const updateArticle = async (article: any, slug: string, id: number) => {
       ...(article.title ? { title: article.title } : {}),
       ...(article.body ? { body: article.body } : {}),
       ...(article.description ? { description: article.description } : {}),
+      ...(typeof article.draft === 'boolean' ? { draft: article.draft } : {}),
       ...(newSlug ? { slug: newSlug } : {}),
       updatedAt: new Date(),
       tagList: {
