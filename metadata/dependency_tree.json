@@ -1,0 +1,26 @@
+{
+    "e2e/.eslintrc.json": [],
+    ".eslintrc.json": [],
+    ".vscode/extensions.json": [],
+    "e2e/src/support/global-setup.ts": [],
+    "e2e/src/server/server.spec.ts": [],
+    "e2e/src/support/test-setup.ts": [],
+    "e2e/jest.config.ts": [
+        "../jest.preset.js",
+        "<rootDir>/src/support/global-setup.ts",
+        "<rootDir>/src/support/global-teardown.ts",
+        "<rootDir>/src/support/test-setup.ts"
+    ],
+    "e2e/src/support/global-teardown.ts": [],
+    "e2e/project.json": [],
+    "e2e/tsconfig.json": [
+        "../tsconfig.json",
+        "./tsconfig.spec.json"
+    ],
+    "jest.config.ts": [
+        "./jest.preset.js"
+    ],
+    "e2e/tsconfig.spec.json": [
+        "./tsconfig.json"
+    ]
+}
