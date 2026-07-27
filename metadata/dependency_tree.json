@@ -1,0 +1,42 @@
+{
+    "e2e/src/support/test-setup.ts": [],
+    ".eslintrc.json": [],
+    "e2e/src/support/global-setup.ts": [],
+    ".vscode/extensions.json": [],
+    "e2e/src/server/server.spec.ts": [],
+    "e2e/jest.config.ts": [
+        "../jest.preset.js",
+        "<rootDir>/src/support/global-setup.ts",
+        "<rootDir>/src/support/global-teardown.ts",
+        "<rootDir>/src/support/test-setup.ts"
+    ],
+    "e2e/project.json": [],
+    "e2e/tsconfig.json": [
+        "../tsconfig.json",
+        "./tsconfig.spec.json"
+    ],
+    "e2e/.eslintrc.json": [],
+    "e2e/src/support/global-teardown.ts": [],
+    "e2e/tsconfig.spec.json": [
+        "./tsconfig.json"
+    ],
+    "jest.config.ts": [
+        "./jest.preset.js"
+    ],
+    "jest.preset.js": [],
+    "nx.json": [],
+    "package.json": [
+        "src/prisma/seed.ts",
+        "src/prisma/schema.prisma"
+    ],
+    "src/app/models/http-exception.model.ts": [],
+    "project.json": [],
+    "src/app/routes/article/article.mapper.ts": [
+        "./author.mapper"
+    ],
+    "src/app/routes/article/article.controller.ts": [
+        "../auth/auth",
+        "./article.service"
+    ],
+    "package-lock.json": []
+}
