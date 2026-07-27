@@ -38,5 +38,68 @@
         "../auth/auth",
         "./article.service"
     ],
-    "package-lock.json": []
+    "package-lock.json": [],
+    "src/app/routes/auth/auth.ts": [],
+    "src/app/routes/article/comment.model.ts": [
+        "./article.model"
+    ],
+    "src/app/routes/auth/registered-user.model.ts": [],
+    "src/app/routes/auth/register-input.model.ts": [],
+    "src/app/routes/auth/auth.service.ts": [
+        "./register-input.model",
+        "../../../prisma/prisma-client",
+        "../../models/http-exception.model",
+        "./registered-user.model",
+        "./token.utils",
+        "./user.model"
+    ],
+    "src/app/routes/article/article.model.ts": [
+        "./comment.model"
+    ],
+    "src/app/routes/article/article.service.ts": [
+        "../../../prisma/prisma-client",
+        "../../models/http-exception.model",
+        "../profile/profile.utils",
+        "./article.mapper",
+        "../tag/tag.model"
+    ],
+    "src/app/routes/auth/token.utils.ts": [],
+    "src/app/routes/article/author.mapper.ts": [
+        "../auth/user.model"
+    ],
+    "src/app/routes/profile/profile.controller.ts": [
+        "../auth/auth",
+        "./profile.service"
+    ],
+    "src/app/routes/auth/user.model.ts": [
+        "../article/article.model",
+        "../article/comment.model"
+    ],
+    "src/app/routes/profile/profile.model.ts": [],
+    "src/app/routes/auth/user-request.d.ts": [],
+    "src/app/routes/profile/profile.utils.ts": [
+        "../auth/user.model",
+        "./profile.model"
+    ],
+    "src/app/routes/profile/profile.service.ts": [
+        "../../../prisma/prisma-client",
+        "./profile.utils",
+        "../../models/http-exception.model"
+    ],
+    "src/app/routes/routes.ts": [
+        "./tag/tag.controller",
+        "./article/article.controller",
+        "./auth/auth.controller",
+        "./profile/profile.controller"
+    ],
+    "src/app/routes/tag/tag.model.ts": [],
+    "src/app/routes/tag/tag.controller.ts": [
+        "../auth/auth",
+        "./tag.service"
+    ],
+    "src/app/routes/tag/tag.service.ts": [
+        "../../../prisma/prisma-client",
+        "./tag.model"
+    ],
+    "src/app/routes/auth/auth.controller.ts": []
 }
