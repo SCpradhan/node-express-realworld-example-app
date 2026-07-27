@@ -1,0 +1,152 @@
+{
+    "e2e/src/support/test-setup.ts": {
+        "purpose": "Configures the global axios HTTP client for end-to-end test execution. Sets the base URL for API requests by reading host and port from environment variables or using localhost:3000 as defaults.",
+        "functions": [
+            {
+                "signature": "module.exports = async function ()",
+                "purpose": "Asynchronous setup function that configures axios defaults with the appropriate base URL for the test environment."
+            }
+        ]
+    },
+    ".eslintrc.json": {
+        "purpose": "Defines ESLint configuration for a monorepo managed by Nx, establishing linting rules and overrides for TypeScript, JavaScript, and test files. Configures the root-level linting behavior with Nx-specific plugins and extends standard Nx presets for different file types.",
+        "functions": []
+    },
+    "e2e/src/support/global-setup.ts": {
+        "purpose": "Serves as the global setup configuration file for end-to-end testing infrastructure. Initializes test environment prerequisites such as databases or docker-compose services before test execution begins, and passes teardown messages to the global teardown phase via globalThis.",
+        "functions": [
+            {
+                "signature": "module.exports = async function ()",
+                "purpose": "Asynchronous setup function that initializes required services for the test suite and configures global teardown messaging through globalThis."
+            }
+        ]
+    },
+    ".vscode/extensions.json": {
+        "purpose": "This is a Visual Studio Code workspace configuration file that specifies recommended extensions for developers working on this Node.js Express RealWorld example application. It suggests four extensions: Angular Console, Prettier for code formatting, Jest test runner, and ESLint for JavaScript linting.",
+        "functions": []
+    },
+    "e2e/src/server/server.spec.ts": {
+        "purpose": "This is an end-to-end test specification file that validates the server's root endpoint behavior. It contains a single test suite that verifies the GET / route returns a 200 status code and a JSON response with a 'Hello API' message.",
+        "functions": []
+    },
+    "e2e/jest.config.ts": {
+        "purpose": "Configures Jest testing framework for end-to-end (e2e) tests in a Node.js/TypeScript environment. Defines test environment settings, TypeScript transformation rules, global setup/teardown hooks, and coverage output directory for the e2e test suite.",
+        "functions": []
+    },
+    "e2e/project.json": {
+        "purpose": "Defines the Nx workspace project configuration for the end-to-end testing suite. Specifies build targets for running Jest-based e2e tests and ESLint validation, with an implicit dependency on the 'api' project to ensure proper test execution order.",
+        "functions": []
+    },
+    "e2e/tsconfig.json": {
+        "purpose": "TypeScript configuration file for the end-to-end (e2e) testing directory. Extends the root tsconfig.json and references the e2e spec configuration file while enabling ES module interoperability for test execution.",
+        "functions": []
+    },
+    "e2e/.eslintrc.json": {
+        "purpose": "Defines ESLint configuration for the e2e testing directory in an Nx monorepo workspace. Specifies linting rules and plugin extensions for TypeScript and JavaScript files, ensuring code quality standards are enforced across end-to-end test files.",
+        "functions": []
+    },
+    "e2e/src/support/global-teardown.ts": {
+        "purpose": "Serves as the global teardown hook for end-to-end test execution. This module exports an async function that runs after all tests complete, providing a centralized location for cleanup logic such as stopping services or docker-compose containers, and logs a teardown message from the global context.",
+        "functions": [
+            {
+                "signature": "module.exports = async function ()",
+                "purpose": "Executes global cleanup operations after all e2e tests have completed and logs the teardown message stored in globalThis during test setup."
+            }
+        ]
+    },
+    "e2e/tsconfig.spec.json": {
+        "purpose": "Defines TypeScript compiler configuration specifically for end-to-end test specifications in the node-express-realworld-example-app project. Extends the base tsconfig.json and configures Jest test environment with CommonJS module output targeting the dist/out-tsc directory.",
+        "functions": []
+    },
+    "jest.config.ts": {
+        "purpose": "Configures Jest testing framework settings for the API module of a Node.js Express application. Defines test environment, file transformation rules using ts-jest for TypeScript files, test file matching patterns, and coverage output directory.",
+        "functions": []
+    },
+    "jest.preset.js": {
+        "purpose": "Serves as the Jest testing configuration preset file for the node-express-realworld-example-app project. This file imports and re-exports the default Nx Jest preset configuration, establishing the baseline testing framework settings for the entire monorepo workspace.",
+        "functions": []
+    },
+    "nx.json": {
+        "purpose": "Defines the Nx workspace configuration for a Node.js Express RealWorld example application. Specifies build system defaults, caching strategies, task dependencies, and input file patterns for build, lint, and test targets across the monorepo.",
+        "functions": []
+    },
+    "package.json": {
+        "purpose": "Defines the Node.js project configuration and dependency manifest for a RealWorld API implementation built with Express. Configures Nx monorepo tooling, Prisma ORM with seeding capabilities, and establishes build, test, and development scripts for the application.",
+        "functions": []
+    },
+    "src/app/models/http-exception.model.ts": {
+        "purpose": "Defines a custom HTTP exception model that extends the native Error class to encapsulate HTTP error responses with specific error codes. This class serves as a standardized error structure for the application's HTTP layer, allowing consistent error handling and propagation throughout the Express-based RealWorld API.",
+        "functions": [
+            {
+                "signature": "constructor(errorCode: number, public readonly message: string | any)",
+                "purpose": "Initializes a new HttpException instance with a specific HTTP error code and error message, setting up the error object for propagation through the application's error handling middleware."
+            }
+        ]
+    },
+    "project.json": {
+        "purpose": "Defines the Nx workspace project configuration for the 'api' application in a Node.js/Express RealWorld example app. Specifies build targets using esbuild, serve configurations, linting with ESLint, testing with Jest, and Docker containerization commands for both development and production environments.",
+        "functions": []
+    },
+    "src/app/routes/article/article.mapper.ts": {
+        "purpose": "Transforms raw article data objects into a standardized article response format for the RealWorld API. Maps article properties including slug, title, description, body, tag list, timestamps, favorited status, favorites count, and author information using the author mapper.",
+        "functions": [
+            {
+                "signature": "const articleMapper = (article: any, id?: number) => ({...})",
+                "purpose": "Accepts an article object and optional user ID, then returns a formatted article object with computed favorited status and mapped author data."
+            }
+        ]
+    },
+    "src/app/routes/article/article.controller.ts": {
+        "purpose": "Defines the Express router controller for article-related HTTP endpoints in a RealWorld API implementation. Orchestrates RESTful operations for articles, comments, and favorites by delegating to service layer functions and handling authentication middleware for protected routes.",
+        "functions": [
+            {
+                "signature": "router.get('/articles', auth.optional, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves a paginated list of articles with optional filtering by tag, author, and favorited status. Authentication is optional to support both authenticated and anonymous users."
+            },
+            {
+                "signature": "router.get('/articles/feed', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Returns a personalized feed of articles for authenticated users based on their followed authors. Requires authentication and supports pagination via offset and limit query parameters."
+            },
+            {
+                "signature": "router.post('/articles', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Creates a new article with title, description, body, and optional tag list. Requires authentication and returns the created article with 201 status."
+            },
+            {
+                "signature": "router.get('/articles/:slug', auth.optional, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Fetches a single article by its unique slug identifier. Authentication is optional to allow public article viewing."
+            },
+            {
+                "signature": "router.put('/articles/:slug', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Updates an existing article identified by slug with new title, description, or body content. Requires authentication to ensure only authorized users can modify articles."
+            },
+            {
+                "signature": "router.delete('/articles/:slug', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Deletes an article identified by its slug. Requires authentication and returns 204 No Content status on successful deletion."
+            },
+            {
+                "signature": "router.get('/articles/:slug/comments', auth.optional, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves all comments associated with a specific article identified by slug. Authentication is optional to allow public comment viewing."
+            },
+            {
+                "signature": "router.post('/articles/:slug/comments', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Adds a new comment to an article identified by slug. Requires authentication and returns the created comment object."
+            },
+            {
+                "signature": "router.delete('/articles/:slug/comments/:id', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Deletes a specific comment identified by its numeric ID from an article. Requires authentication to ensure only authorized users can remove comments."
+            },
+            {
+                "signature": "router.post('/articles/:slug/favorite', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Marks an article as favorited by the authenticated user. Requires authentication and returns the updated article with favorite status."
+            },
+            {
+                "signature": "router.delete('/articles/:slug/favorite', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Removes the favorite status from an article for the authenticated user. Requires authentication and returns the updated article."
+            }
+        ]
+    },
+    "package-lock.json": {
+        "purpose": "Failed after 3 attempts.",
+        "functions": []
+    }
+}
