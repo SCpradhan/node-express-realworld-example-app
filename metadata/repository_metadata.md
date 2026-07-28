@@ -3,21 +3,26 @@
 ## `.vscode`
 | File Path | Core Purpose | Exposed Functions |
 |-----------|--------------|-------------------|
-| `.vscode/extensions.json` | This is a Visual Studio Code workspace configuration file that specifies recommended extensions for developers working on this Node.js Express RealWorld example application. It suggests four extensions: Angular Console, Prettier for code formatting, Jest test runner, and ESLint for code linting. |  |
+| `.vscode/extensions.json` | This is a Visual Studio Code workspace configuration file that specifies recommended extensions for developers working on this Node.js Express RealWorld example application. It suggests four extensions: Angular Console, Prettier for code formatting, Jest test runner, and ESLint for JavaScript linting. |  |
 
 ## `/`
 | File Path | Core Purpose | Exposed Functions |
 |-----------|--------------|-------------------|
-| `.eslintrc.json` | Defines ESLint configuration for a monorepo managed by Nx, establishing linting rules and overrides for TypeScript, JavaScript, and test files. Configures the root-level linting behavior with Nx-specific plugins and file pattern matching to enforce code quality standards across the project. |  |
+| `.eslintrc.json` | Defines ESLint configuration for a monorepo managed by Nx, establishing linting rules and overrides for TypeScript, JavaScript, and test files. Configures the root linting behavior and integrates Nx-specific plugins to enforce code quality standards across different file types in the project. |  |
 | `jest.config.ts` | Configures Jest testing framework settings for the API module of a Node.js Express application. Defines test environment, file transformation rules using ts-jest for TypeScript files, test file matching patterns, and coverage output directory. |  |
+| `jest.preset.js` | Serves as the Jest testing configuration preset file for the node-express-realworld-example-app project. This file imports and re-exports the default Nx Jest preset configuration, enabling consistent test runner settings across the monorepo workspace. |  |
+| `nx.json` | Defines the Nx workspace configuration for a Node.js Express RealWorld example application. Specifies build system defaults, caching strategies, target dependencies, and input patterns for build, lint, and test operations across the monorepo. |  |
+| `package-lock.json` | Failed after 3 attempts. |  |
+| `package.json` | Defines the Node.js project configuration and dependency manifest for a RealWorld API implementation using Express, Prisma ORM, and Nx monorepo tooling. Specifies build scripts, database seeding configuration, and manages both runtime dependencies (Express, JWT, bcrypt) and development tooling (TypeScript, Jest, ESLint). |  |
+| `project.json` | Defines the Nx workspace project configuration for the 'api' application in a Node.js/Express RealWorld example app. Specifies build targets using esbuild, serve configurations, linting with ESLint, testing with Jest, and Docker containerization commands for both development and production environments. |  |
 
 ## `e2e`
 | File Path | Core Purpose | Exposed Functions |
 |-----------|--------------|-------------------|
-| `e2e/.eslintrc.json` | Defines ESLint configuration for the e2e testing directory in an Nx monorepo workspace. Specifies linting rules and plugins for TypeScript and JavaScript files, ensuring code quality standards are enforced across end-to-end test files. |  |
+| `e2e/.eslintrc.json` | Defines ESLint configuration for the e2e testing directory in an Nx monorepo workspace. Specifies linting rules and plugin extensions for TypeScript and JavaScript files, ensuring code quality standards are enforced across end-to-end test files. |  |
 | `e2e/jest.config.ts` | Configures Jest testing framework for end-to-end (e2e) tests in a Node.js/TypeScript environment. Defines test environment settings, TypeScript transformation rules, global setup/teardown hooks, and coverage output directory for the e2e test suite. |  |
 | `e2e/project.json` | Defines the Nx workspace project configuration for the end-to-end testing suite. Specifies build targets for running Jest-based e2e tests and ESLint validation, with an implicit dependency on the 'api' project to ensure proper test execution order. |  |
-| `e2e/tsconfig.json` | TypeScript configuration file for the end-to-end (e2e) testing directory. Extends the root tsconfig.json and references a specialized spec configuration file for test execution. Enables ES module interoperability for the e2e test suite. |  |
+| `e2e/tsconfig.json` | TypeScript configuration file for the e2e (end-to-end) testing directory. Extends the root TypeScript configuration and references a specialized spec configuration file for test execution. Enables ES module interoperability for the e2e test suite. |  |
 | `e2e/tsconfig.spec.json` | TypeScript configuration file specifically for end-to-end test specifications in a Node.js Express application. Extends the base TypeScript configuration and configures the compiler to output CommonJS modules with Jest and Node type definitions for the e2e testing environment. |  |
 
 ## `e2e/src/server`
@@ -28,7 +33,18 @@
 ## `e2e/src/support`
 | File Path | Core Purpose | Exposed Functions |
 |-----------|--------------|-------------------|
-| `e2e/src/support/global-setup.ts` | Provides global setup configuration for end-to-end testing infrastructure. This module exports an async function that initializes test environment prerequisites and passes teardown messages to the global teardown phase via globalThis. | <b>`module.exports = async function ()`</b>: Executes global setup tasks before test suite runs and configures the teardown message that will be used during cleanup phase. |
-| `e2e/src/support/global-teardown.ts` | Serves as the global teardown hook for end-to-end test execution in the node-express-realworld-example-app. This module is invoked after all tests complete to perform cleanup operations such as stopping services or docker-compose containers, and logs a teardown message stored in the global context. | <b>`module.exports = async function ()`</b>: Executes cleanup logic after all e2e tests complete, including stopping services and logging the teardown message from globalThis. |
+| `e2e/src/support/global-setup.ts` | Provides a global setup hook for end-to-end test execution. This module exports an async function that runs before all tests to initialize required services and passes teardown messages to the global teardown phase via globalThis. | <b>`module.exports = async function ()`</b>: Executes global setup tasks before test suite runs and configures a teardown message on globalThis for use during test cleanup. |
+| `e2e/src/support/global-teardown.ts` | Serves as the global teardown hook for end-to-end test execution. This module exports an async function that runs after all tests complete, providing a centralized location for cleanup logic such as stopping services or docker-compose containers. | <b>`module.exports = async function ()`</b>: Executes global cleanup operations after all e2e tests have completed. Currently logs a teardown message from globalThis and serves as a placeholder for additional cleanup logic. |
 | `e2e/src/support/test-setup.ts` | Configures the global axios HTTP client for end-to-end test execution. Sets the base URL for API requests by reading host and port from environment variables or using localhost:3000 as defaults. | <b>`module.exports = async function ()`</b>: Asynchronous setup function that configures axios defaults with the appropriate base URL for the test environment. |
+
+## `metadata`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `metadata/dependency_tree.json` | This is a metadata file that documents the dependency relationships between configuration and test files in a Node.js/Express project. It maps each file to its direct dependencies, primarily showing how Jest and TypeScript configuration files reference each other and their respective presets. |  |
+| `metadata/repository_metadata.json` | Serves as a centralized metadata repository file that documents the architectural purpose and public function signatures of all configuration, test setup, and build files across the node-express-realworld-example-app monorepo. This JSON file aggregates metadata for ESLint configurations, Jest test configurations, TypeScript configurations, e2e test setup/teardown modules, and Nx workspace project definitions to provide a comprehensive architectural overview of the repository's infrastructure files. |  |
+
+## `src/app/models`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/app/models/http-exception.model.ts` | Defines a custom HTTP exception model that extends the native Error class to encapsulate HTTP error responses with specific error codes. This class serves as a standardized error structure for the application's HTTP layer, allowing consistent error handling and propagation throughout the Express-based RealWorld application. | <b>`constructor(errorCode: number, public readonly message: string | any)`</b>: Initializes a new HttpException instance with a specific HTTP error code and error message, calling the parent Error constructor and storing the error code for later retrieval. |
 
