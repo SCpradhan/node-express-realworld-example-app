@@ -1,26 +1,37 @@
 {
-    "e2e/.eslintrc.json": [],
-    ".eslintrc.json": [],
-    ".vscode/extensions.json": [],
     "e2e/src/support/global-setup.ts": [],
-    "e2e/src/server/server.spec.ts": [],
-    "e2e/src/support/test-setup.ts": [],
+    ".vscode/extensions.json": [],
+    ".eslintrc.json": [],
     "e2e/jest.config.ts": [
         "../jest.preset.js",
         "<rootDir>/src/support/global-setup.ts",
         "<rootDir>/src/support/global-teardown.ts",
         "<rootDir>/src/support/test-setup.ts"
     ],
-    "e2e/src/support/global-teardown.ts": [],
+    "e2e/.eslintrc.json": [],
     "e2e/project.json": [],
+    "e2e/src/support/test-setup.ts": [],
+    "e2e/src/support/global-teardown.ts": [],
+    "e2e/src/server/server.spec.ts": [],
     "e2e/tsconfig.json": [
         "../tsconfig.json",
         "./tsconfig.spec.json"
     ],
+    "e2e/tsconfig.spec.json": [
+        "./tsconfig.json"
+    ],
+    "jest.preset.js": [],
     "jest.config.ts": [
         "./jest.preset.js"
     ],
-    "e2e/tsconfig.spec.json": [
-        "./tsconfig.json"
-    ]
+    "metadata/dependency_tree.json": [],
+    "nx.json": [],
+    "project.json": [],
+    "metadata/repository_metadata.json": [],
+    "package.json": [
+        "src/prisma/seed.ts",
+        "src/prisma/schema.prisma"
+    ],
+    "src/app/models/http-exception.model.ts": [],
+    "package-lock.json": []
 }
