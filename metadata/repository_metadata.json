@@ -98,5 +98,270 @@
     "package-lock.json": {
         "purpose": "Failed after 3 attempts.",
         "functions": []
+    },
+    "src/app/routes/auth/auth.ts": {
+        "purpose": "Provides JWT-based authentication middleware for Express routes in a Node.js application. Exports two authentication configurations: required authentication that enforces JWT validation, and optional authentication that allows requests without credentials. Extracts JWT tokens from Authorization headers supporting both 'Token' and 'Bearer' schemes.",
+        "functions": [
+            {
+                "signature": "const getTokenFromHeaders = (req: express.Request): string | null",
+                "purpose": "Extracts and returns the JWT token from the Authorization header of an Express request, supporting both 'Token' and 'Bearer' authentication schemes."
+            }
+        ]
+    },
+    "src/app/routes/article/article.mapper.ts": {
+        "purpose": "Transforms raw article data objects into a standardized article response format for the RealWorld API. Maps article properties including slug, title, description, body, tag list, timestamps, favorited status, favorites count, and author information using the author mapper.",
+        "functions": [
+            {
+                "signature": "const articleMapper = (article: any, id?: number) => ({...})",
+                "purpose": "Accepts an article object and optional user ID, then returns a formatted article object with computed favorited status and mapped author data."
+            }
+        ]
+    },
+    "src/app/routes/article/comment.model.ts": {
+        "purpose": "Defines the TypeScript interface for a Comment entity in a real-world article application. Specifies the data structure for comments including metadata fields (id, timestamps, body) and an optional relationship to an Article entity.",
+        "functions": []
+    },
+    "src/app/routes/auth/auth.service.ts": {
+        "purpose": "Provides authentication and user management services for a RealWorld example application. Handles user registration with uniqueness validation, login with password verification, retrieval of current user data, and user profile updates. Integrates with Prisma ORM for database operations and bcrypt for password hashing, returning JWT tokens for authenticated sessions.",
+        "functions": [
+            {
+                "signature": "export const createUser = async (input: RegisterInput): Promise<RegisteredUser>",
+                "purpose": "Registers a new user by validating input fields, checking email and username uniqueness, hashing the password, creating the user record in the database, and returning the user data with a JWT token."
+            },
+            {
+                "signature": "export const login = async (userPayload: any)",
+                "purpose": "Authenticates a user by validating credentials, comparing the provided password with the stored hash, and returning user data with a JWT token if authentication succeeds."
+            },
+            {
+                "signature": "export const getCurrentUser = async (id: number)",
+                "purpose": "Retrieves the current user's profile information by user ID and returns it with a fresh JWT token."
+            },
+            {
+                "signature": "export const updateUser = async (userPayload: any, id: number)",
+                "purpose": "Updates user profile fields including email, username, password, image, and bio, hashing the new password if provided, and returns the updated user data with a JWT token."
+            }
+        ]
+    },
+    "src/app/routes/auth/register-input.model.ts": {
+        "purpose": "Defines the TypeScript interface for user registration input data in the authentication module. Specifies the required and optional fields needed to register a new user account, including email, username, password, and optional profile information.",
+        "functions": []
+    },
+    "src/app/routes/article/article.service.ts": {
+        "purpose": "Provides comprehensive service layer operations for article management in a RealWorld blogging application. Handles CRUD operations for articles, comments, and favorites, including querying with filters (author, tag, favorited), feed generation, and authorization checks. Integrates with Prisma ORM for database operations and applies business logic such as slug generation, validation, and relationship mapping.",
+        "functions": [
+            {
+                "signature": "export const getArticles = async (query: any, id?: number)",
+                "purpose": "Retrieves a paginated list of articles based on query filters (author, tag, favorited) with support for demo mode and user-specific visibility. Returns articles with their metadata, tags, author profiles, and favorite counts."
+            },
+            {
+                "signature": "export const getFeed = async (offset: number, limit: number, id: number)",
+                "purpose": "Fetches a personalized feed of articles from authors that the authenticated user follows, with pagination support. Returns articles ordered by creation date descending."
+            },
+            {
+                "signature": "export const createArticle = async (article: any, id: number)",
+                "purpose": "Creates a new article with validation for required fields (title, description, body), generates a unique slug, and associates tags and author. Throws validation errors for missing fields or duplicate titles."
+            },
+            {
+                "signature": "export const getArticle = async (slug: string, id?: number)",
+                "purpose": "Retrieves a single article by its slug identifier, including all related data (tags, author, favorites). Throws a 404 error if the article is not found."
+            },
+            {
+                "signature": "export const updateArticle = async (article: any, slug: string, id: number)",
+                "purpose": "Updates an existing article with authorization checks to ensure only the author can modify it. Handles slug regeneration if title changes, validates uniqueness, and updates tags by disconnecting old ones and connecting new ones."
+            },
+            {
+                "signature": "export const deleteArticle = async (slug: string, id: number)",
+                "purpose": "Deletes an article by slug with authorization verification to ensure only the author can delete it. Throws 404 if article not found or 403 if user is unauthorized."
+            },
+            {
+                "signature": "export const getCommentsByArticle = async (slug: string, id?: number)",
+                "purpose": "Retrieves all comments for a specific article, filtered by demo mode and user visibility. Maps comment data to include author profiles with following status."
+            },
+            {
+                "signature": "export const addComment = async (body: string, slug: string, id: number)",
+                "purpose": "Creates a new comment on an article with validation for non-empty body. Associates the comment with the article and authenticated user, returning the comment with author profile."
+            },
+            {
+                "signature": "export const deleteComment = async (id: number, userId: number)",
+                "purpose": "Deletes a comment by ID with authorization checks to ensure only the comment author can delete it. Throws 404 if comment not found or 403 if user is unauthorized."
+            },
+            {
+                "signature": "export const favoriteArticle = async (slugPayload: string, id: number)",
+                "purpose": "Adds the authenticated user to the article's favorited list, updating the favorite count and returning the updated article with mapped author profile and favorite status."
+            },
+            {
+                "signature": "export const unfavoriteArticle = async (slugPayload: string, id: number)",
+                "purpose": "Removes the authenticated user from the article's favorited list, updating the favorite count and returning the updated article with mapped author profile and favorite status."
+            }
+        ]
+    },
+    "src/app/routes/article/article.controller.ts": {
+        "purpose": "Defines the Express router controller for article-related HTTP endpoints in a RealWorld application. Orchestrates RESTful operations for articles, comments, and favorites by delegating to service layer functions and handling authentication middleware for protected routes.",
+        "functions": [
+            {
+                "signature": "router.get('/articles', auth.optional, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves paginated list of articles with optional filtering by tag, author, and favorited status. Authentication is optional to support both authenticated and anonymous users."
+            },
+            {
+                "signature": "router.get('/articles/feed', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves paginated feed of articles from followed authors. Requires user authentication to determine which authors the user follows."
+            },
+            {
+                "signature": "router.post('/articles', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Creates a new article with title, description, body, and tag list. Requires authentication and returns the created article with 201 status."
+            },
+            {
+                "signature": "router.get('/articles/:slug', auth.optional, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves a single article by its slug identifier. Authentication is optional to allow public article viewing."
+            },
+            {
+                "signature": "router.put('/articles/:slug', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Updates an existing article identified by slug with new title, description, or body content. Requires authentication to verify ownership."
+            },
+            {
+                "signature": "router.delete('/articles/:slug', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Deletes an article identified by slug. Requires authentication to verify ownership and returns 204 status on success."
+            },
+            {
+                "signature": "router.get('/articles/:slug/comments', auth.optional, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves all comments for a specific article identified by slug. Authentication is optional to allow public comment viewing."
+            },
+            {
+                "signature": "router.post('/articles/:slug/comments', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Adds a new comment to an article identified by slug. Requires authentication to associate comment with the authenticated user."
+            },
+            {
+                "signature": "router.delete('/articles/:slug/comments/:id', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Deletes a specific comment identified by id from an article. Requires authentication to verify comment ownership."
+            },
+            {
+                "signature": "router.post('/articles/:slug/favorite', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Marks an article as favorited by the authenticated user. Requires authentication and returns the updated article with favorite status."
+            },
+            {
+                "signature": "router.delete('/articles/:slug/favorite', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Removes favorite status from an article for the authenticated user. Requires authentication and returns the updated article."
+            }
+        ]
+    },
+    "src/app/routes/article/author.mapper.ts": {
+        "purpose": "Provides a data transformation utility that maps raw author data objects into a standardized author profile format for article responses. Determines the following status of an author by checking if the requesting user's ID exists in the author's followedBy collection.",
+        "functions": [
+            {
+                "signature": "const authorMapper = (author: any, id?: number)",
+                "purpose": "Transforms an author object into a standardized profile format containing username, bio, image, and following status based on the optional user ID parameter."
+            }
+        ]
+    },
+    "src/app/routes/article/article.model.ts": {
+        "purpose": "Defines the TypeScript interface for the Article domain model in a RealWorld example application. Specifies the structure and data types for article entities including metadata fields, associated comments, and favorited status.",
+        "functions": []
+    },
+    "src/app/routes/auth/auth.controller.ts": {
+        "purpose": "Defines the Express router controller for authentication and user management endpoints in a RealWorld application. Exposes REST API routes for user registration, login, retrieving current user information, and updating user profiles, delegating business logic to the auth service layer.",
+        "functions": [
+            {
+                "signature": "router.post('/users', async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Creates a new user account with the provided user data and returns the created user with a 201 status code."
+            },
+            {
+                "signature": "router.post('/users/login', async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Authenticates a user with login credentials and returns the authenticated user information."
+            },
+            {
+                "signature": "router.get('/user', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves the current authenticated user's information using the user ID from the authentication token."
+            },
+            {
+                "signature": "router.put('/user', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Updates the current authenticated user's profile information and returns the updated user data."
+            }
+        ]
+    },
+    "src/app/routes/auth/registered-user.model.ts": {
+        "purpose": "Defines the TypeScript interface for a registered user entity in the authentication domain. This interface specifies the complete data structure returned after successful user registration or authentication, including user profile fields and authentication token.",
+        "functions": []
+    },
+    "src/app/routes/auth/token.utils.ts": {
+        "purpose": "Provides JWT token generation utility for user authentication in the RealWorld example application. Creates signed tokens containing user ID with a 60-day expiration period using a configurable secret key from environment variables.",
+        "functions": [
+            {
+                "signature": "const generateToken = (id: number): string",
+                "purpose": "Generates and returns a JWT token for a given user ID, signing it with the application secret and setting a 60-day expiration."
+            }
+        ]
+    },
+    "src/app/routes/auth/user-request.d.ts": {
+        "purpose": "Provides TypeScript type augmentation for Express.js Request objects to include optional authentication metadata. Extends the Express namespace to add an auth property containing user identification information for authenticated requests.",
+        "functions": []
+    },
+    "src/app/routes/auth/user.model.ts": {
+        "purpose": "Defines the User data model interface for the RealWorld application, representing the core user entity with authentication credentials, profile information, and relationships to articles, comments, and other users. This TypeScript interface serves as the central type definition for user objects throughout the authentication and social features of the application.",
+        "functions": []
+    },
+    "src/app/routes/profile/profile.controller.ts": {
+        "purpose": "Defines Express.js routing endpoints for user profile operations in a RealWorld application. Exposes three HTTP routes for retrieving user profiles, following users, and unfollowing users, delegating business logic to the profile service layer.",
+        "functions": [
+            {
+                "signature": "router.get('/profiles/:username', auth.optional, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Retrieves and returns a user profile by username with optional authentication, allowing both authenticated and unauthenticated access."
+            },
+            {
+                "signature": "router.post('/profiles/:username/follow', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Allows an authenticated user to follow another user by username and returns the updated profile."
+            },
+            {
+                "signature": "router.delete('/profiles/:username/follow', auth.required, async (req: Request, res: Response, next: NextFunction))",
+                "purpose": "Allows an authenticated user to unfollow another user by username and returns the updated profile."
+            }
+        ]
+    },
+    "src/app/routes/profile/profile.model.ts": {
+        "purpose": "Defines the TypeScript interface for a user Profile entity in the RealWorld application. This interface specifies the structure for profile data including username, bio, image URL, and following status, serving as a type contract for profile-related operations throughout the application.",
+        "functions": []
+    },
+    "src/app/routes/profile/profile.service.ts": {
+        "purpose": "Provides profile management services for a social networking application, handling user profile retrieval, follow/unfollow operations. Interacts with the database through Prisma ORM to manage user relationships and returns mapped profile data.",
+        "functions": [
+            {
+                "signature": "export const getProfile = async (usernamePayload: string, id?: number)",
+                "purpose": "Retrieves a user profile by username from the database, including follower relationships, and returns a mapped profile object. Throws a 404 HttpException if the profile is not found."
+            },
+            {
+                "signature": "export const followUser = async (usernamePayload: string, id: number)",
+                "purpose": "Creates a follow relationship between the authenticated user (identified by id) and the target user (identified by usernamePayload), then returns the updated profile."
+            },
+            {
+                "signature": "export const unfollowUser = async (usernamePayload: string, id: number)",
+                "purpose": "Removes the follow relationship between the authenticated user (identified by id) and the target user (identified by usernamePayload), then returns the updated profile."
+            }
+        ]
+    },
+    "src/app/routes/routes.ts": {
+        "purpose": "Serves as the main API routing configuration file for a Node.js Express application implementing the RealWorld example app. Aggregates and mounts all feature-specific route controllers (tags, articles, profiles, authentication) under a unified '/api' prefix to establish the application's REST API structure.",
+        "functions": [
+            {
+                "signature": "export default Router().use('/api', api)",
+                "purpose": "Exports the main router instance that mounts all API controllers under the '/api' base path, serving as the entry point for all API routes in the application."
+            }
+        ]
+    },
+    "src/app/routes/profile/profile.utils.ts": {
+        "purpose": "Provides a utility function to transform User model data into Profile model data for the profile feature. Maps user properties including username, bio, image, and calculates the following status based on the authenticated user's ID by checking if the user is in the followedBy collection.",
+        "functions": [
+            {
+                "signature": "const profileMapper = (user: any, id: number | undefined): Profile",
+                "purpose": "Transforms a User object into a Profile object, mapping core user properties and determining if the authenticated user (identified by id) is following the target user."
+            }
+        ]
+    },
+    "src/app/routes/tag/tag.controller.ts": {
+        "purpose": "Defines the Express router controller for the tags endpoint in a RealWorld API implementation. Exposes a single GET route that retrieves the top 10 popular tags, with optional authentication support.",
+        "functions": [
+            {
+                "signature": "router.get('/tags', auth.optional, async (req: Request, res: Response, next: NextFunction) => {...})",
+                "purpose": "Handles GET requests to /api/tags endpoint to retrieve a list of popular tag names, optionally using authenticated user context."
+            }
+        ]
     }
 }
