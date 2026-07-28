@@ -101,5 +101,55 @@
     "src/app/routes/tag/tag.controller.ts": [
         "../auth/auth",
         "./tag.service"
+    ],
+    "src/prisma/migrations/20211001143221_implicit_tags/migration.sql": [],
+    "src/prisma/migrations/20210924225358_initial/migration.sql": [],
+    "src/app/routes/tag/tag.service.ts": [
+        "../../../prisma/prisma-client",
+        "./tag.model"
+    ],
+    "src/prisma/seed.ts": [
+        "../app/routes/auth/registered-user.model",
+        "../app/routes/auth/auth.service",
+        "../app/routes/article/article.service"
+    ],
+    "src/prisma/migrations/20211221184529_deprecated_preview/migration.sql": [],
+    "src/main.ts": [
+        "./app/routes/routes",
+        "./app/models/http-exception.model"
+    ],
+    "src/prisma/schema.prisma": [],
+    "src/prisma/prisma-client.ts": [],
+    "src/app/routes/tag/tag.model.ts": [],
+    "src/prisma/migrations/20211105153605_api_url/migration.sql": [],
+    "src/tests/prisma-mock.ts": [
+        "../prisma/prisma-client"
+    ],
+    "src/tests/services/auth.service.test.ts": [
+        "../../app/routes/auth/auth.service",
+        "../prisma-mock"
+    ],
+    "src/tests/services/article.service.test.ts": [
+        "../prisma-mock",
+        "../../app/routes/article/article.service"
+    ],
+    "src/tests/services/profile.service.test.ts": [
+        "../prisma-mock",
+        "../../app/routes/profile/profile.service"
+    ],
+    "src/tests/utils/profile.utils.test.ts": [
+        "../../app/routes/profile/profile.utils"
+    ],
+    "src/tests/services/tag.service.test.ts": [],
+    "tsconfig.app.json": [
+        "./tsconfig.json"
+    ],
+    "tsconfig.json": [
+        "./tsconfig.app.json",
+        "./tsconfig.spec.json"
+    ],
+    "tsconfig.spec.json": [
+        "./tsconfig.json",
+        "jest.config.ts"
     ]
 }
