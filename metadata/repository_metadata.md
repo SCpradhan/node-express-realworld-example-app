@@ -15,6 +15,9 @@
 | `package-lock.json` | Failed after 3 attempts. |  |
 | `package.json` | Defines the Node.js project configuration and dependency manifest for a RealWorld API implementation using Express, Prisma ORM, and Nx monorepo tooling. Specifies build scripts, database seeding configuration, and manages both runtime dependencies (Express, JWT, bcrypt) and development tooling (TypeScript, Jest, ESLint). |  |
 | `project.json` | Defines the Nx workspace project configuration for the 'api' application in a Node.js/Express RealWorld example app. Specifies build targets using esbuild, serve configurations, linting with ESLint, testing with Jest, and Docker containerization commands for both development and production environments. |  |
+| `tsconfig.app.json` | TypeScript configuration file that extends the base tsconfig.json and defines compilation settings specifically for the application build. Configures the output directory, module system as CommonJS, includes Node.js types, and specifies which TypeScript files to include or exclude from compilation. |  |
+| `tsconfig.json` | Defines the root TypeScript compiler configuration for a Node.js Express RealWorld example application. Establishes shared compiler options and references two project-specific configuration files for application code and test specifications. |  |
+| `tsconfig.spec.json` | Defines TypeScript compiler configuration specifically for test and specification files in the node-express-realworld-example-app project. Extends the base tsconfig.json and configures Jest test environment settings, output directory for compiled test files, and includes patterns for test, spec, and type definition files. |  |
 
 ## `e2e`
 | File Path | Core Purpose | Exposed Functions |
@@ -42,6 +45,11 @@
 |-----------|--------------|-------------------|
 | `metadata/dependency_tree.json` | This is a metadata file that documents the dependency relationships between configuration and test files in a Node.js/Express project. It maps each file to its direct dependencies, primarily showing how Jest and TypeScript configuration files reference each other and their respective presets. |  |
 | `metadata/repository_metadata.json` | Serves as a centralized metadata repository file that documents the architectural purpose and public function signatures of all configuration, test setup, and build files across the node-express-realworld-example-app monorepo. This JSON file aggregates metadata for ESLint configurations, Jest test configurations, TypeScript configurations, e2e test setup/teardown modules, and Nx workspace project definitions to provide a comprehensive architectural overview of the repository's infrastructure files. |  |
+
+## `src`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/main.ts` | Serves as the main entry point for a Node.js Express REST API application. Configures middleware (CORS, body parsing, static file serving), mounts application routes, implements centralized error handling for unauthorized and HTTP exceptions, and starts the HTTP server on a configurable port. | <b>`app.get('/', (req: express.Request, res: express.Response) => {...})`</b>: Handles GET requests to the root endpoint and returns a JSON status message indicating the API is running.<br/><b>`app.use((err: Error | HttpException, req: express.Request, res: express.Response, next: express.NextFunction) => {...})`</b>: Global error handling middleware that catches and processes UnauthorizedError, custom HttpException errors, and generic errors, returning appropriate HTTP status codes and error messages.<br/><b>`app.listen(PORT, () => {...})`</b>: Starts the Express server on the specified PORT (from environment variable or default 3000) and logs server activation to console. |
 
 ## `src/app/models`
 | File Path | Core Purpose | Exposed Functions |
@@ -87,4 +95,51 @@
 | File Path | Core Purpose | Exposed Functions |
 |-----------|--------------|-------------------|
 | `src/app/routes/tag/tag.controller.ts` | Defines the Express router controller for the tags endpoint in a RealWorld API implementation. Exposes a single GET route that retrieves the top 10 popular tags, with optional authentication support. | <b>`router.get('/tags', auth.optional, async (req: Request, res: Response, next: NextFunction) => {...})`</b>: Handles GET requests to /api/tags endpoint to retrieve a list of popular tag names, optionally using authenticated user context. |
+| `src/app/routes/tag/tag.model.ts` | Defines the TypeScript interface for a Tag entity in the RealWorld example application. This interface establishes the data contract for tag objects used throughout the tag routing module, specifying that each tag must have a name property of type string. |  |
+| `src/app/routes/tag/tag.service.ts` | Provides tag retrieval service for the RealWorld application by querying tags associated with articles from demo or specific authors. Returns the top 10 most popular tags ordered by article count. | <b>`const getTags = async (id?: number): Promise<string[]>`</b>: Retrieves and returns an array of tag names from the database, optionally filtered by author ID, ordered by article count descending and limited to 10 results. |
+
+## `src/prisma`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/prisma/prisma-client.ts` | Provides a singleton instance of PrismaClient for database access throughout the application. Implements a global caching strategy to prevent multiple Prisma Client instances in development mode, ensuring efficient connection pooling and resource management. | <b>`export default prisma`</b>: Exports the singleton PrismaClient instance for use across the application, either retrieving the existing global instance or creating a new one if none exists. |
+| `src/prisma/schema.prisma` | Defines the Prisma ORM database schema for a RealWorld blogging application. Specifies PostgreSQL as the datasource and models four core entities: Article, Comment, Tag, and User, with their relationships including article authorship, favorites, user follows, and comment threads. |  |
+| `src/prisma/seed.ts` | Database seeding script for a RealWorld example application that populates the Prisma database with demo data. Generates 12 users, creates 12 articles per user, and adds comments from all users to each article using randomly generated content. | <b>`export const generateUser = async (): Promise<RegisteredUser>`</b>: Creates and returns a new user with randomly generated credentials and profile data marked as a demo account.<br/><b>`export const generateArticle = async (id: number)`</b>: Creates and returns a new article with randomly generated title, description, body, and tags for a specified user ID.<br/><b>`export const generateComment = async (id: number, slug: string)`</b>: Adds a randomly generated comment to a specific article identified by slug from a user identified by ID. |
+
+## `src/prisma/migrations/20210924225358_initial`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/prisma/migrations/20210924225358_initial/migration.sql` | Defines the initial database schema migration for a RealWorld example application using Prisma ORM. Creates core tables for Articles, Comments, Tags, Users, and their relationships including article-tag associations, user favorites, and user follows with appropriate foreign key constraints and indexes. |  |
+
+## `src/prisma/migrations/20211001143221_implicit_tags`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/prisma/migrations/20211001143221_implicit_tags/migration.sql` | Database migration script that refactors the article-tag relationship from an explicit join table (ArticleTags) to Prisma's implicit many-to-many relationship pattern. Drops the old ArticleTags table, creates the new _ArticleToTag junction table with proper foreign key constraints, and adds a unique constraint on Tag names. |  |
+
+## `src/prisma/migrations/20211105153605_api_url`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/prisma/migrations/20211105153605_api_url/migration.sql` | This is a Prisma database migration file that updates the User table schema. It specifically alters the default value of the 'image' column to point to a new API URL for the default user avatar image. |  |
+
+## `src/prisma/migrations/20211221184529_deprecated_preview`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/prisma/migrations/20211221184529_deprecated_preview/migration.sql` | This is a Prisma database migration SQL script that renames deprecated unique index constraints to follow the updated naming convention. It updates four unique indexes across Article, Tag, and User tables to align with Prisma's current preview feature requirements. |  |
+
+## `src/tests`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/tests/prisma-mock.ts` | Provides a mocked Prisma client for testing purposes in a Node.js/Express application. Configures Jest to replace the real Prisma client with a deep mock proxy and automatically resets the mock state before each test to ensure test isolation. | <b>`export default prismaMock`</b>: Exports the mocked Prisma client instance as a DeepMockProxy for use in test files throughout the application. |
+
+## `src/tests/services`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/tests/services/article.service.test.ts` | Provides comprehensive unit tests for the article service layer, specifically testing the deleteComment, favoriteArticle, and unfavoriteArticle functions. Validates error handling for missing users and comments, and verifies correct behavior when favoriting/unfavoriting articles using mocked Prisma database interactions. |  |
+| `src/tests/services/auth.service.test.ts` | Provides comprehensive unit test coverage for the authentication service module. Tests user creation, login, current user retrieval, and user update operations with various validation scenarios including empty field checks, duplicate user handling, and password verification. |  |
+| `src/tests/services/profile.service.test.ts` | Provides comprehensive unit test coverage for the profile service module in a RealWorld example application. Tests the core profile operations including retrieving user profiles, following users, and unfollowing users, validating both success and error scenarios using mocked Prisma database interactions. |  |
+| `src/tests/services/tag.service.test.ts` | Defines a test suite for the TagService component in a Node.js Express application. Contains a placeholder test case for the getTags method that is marked as TODO, indicating the test implementation is incomplete due to issues with mocking Prisma's tag.groupBy method. |  |
+
+## `src/tests/utils`
+| File Path | Core Purpose | Exposed Functions |
+|-----------|--------------|-------------------|
+| `src/tests/utils/profile.utils.test.ts` | Contains unit tests for the profileMapper utility function. Validates that the mapper correctly transforms user profile data with follower relationships into the expected profile response format, including proper handling of the 'following' boolean flag based on whether the requesting user follows the profile. |  |
 
