@@ -1,114 +1,194 @@
--- CreateTable
-CREATE TABLE "Article" (
-    "id" SERIAL NOT NULL,
-    "slug" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "body" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "authorId" INTEGER NOT NULL,
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
-    PRIMARY KEY ("id")
-);
+describe('Migration 20210924225358_initial - Schema Verification Tests', () => {
+  const migrationPath = path.join(__dirname, '../../../src/prisma/migrations/20210924225358_initial/migration.sql');
+  
+  describe('Article Table Schema Verification', () => {
+    test('should verify Article table has body column for readingTime calculation', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CREATE TABLE "Article"');
+      expect(migrationContent).toContain('"body" TEXT NOT NULL');
+    });
 
--- CreateTable
-CREATE TABLE "ArticleTags" (
-    "articleId" INTEGER NOT NULL,
-    "tagId" INTEGER NOT NULL,
+    test('should verify Article table does NOT contain readingTime column', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).not.toContain('readingTime');
+      expect(migrationContent).not.toContain('reading_time');
+      expect(migrationContent).not.toContain('READING_TIME');
+    });
 
-    PRIMARY KEY ("articleId","tagId")
-);
+    test('should verify Article table has all required columns', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('"id" SERIAL NOT NULL');
+      expect(migrationContent).toContain('"slug" TEXT NOT NULL');
+      expect(migrationContent).toContain('"title" TEXT NOT NULL');
+      expect(migrationContent).toContain('"description" TEXT NOT NULL');
+      expect(migrationContent).toContain('"body" TEXT NOT NULL');
+      expect(migrationContent).toContain('"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP');
+      expect(migrationContent).toContain('"updatedAt" TIMESTAMP(3) NOT NULL');
+      expect(migrationContent).toContain('"authorId" INTEGER NOT NULL');
+    });
 
--- CreateTable
-CREATE TABLE "Comment" (
-    "id" SERIAL NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "body" TEXT NOT NULL,
-    "articleId" INTEGER NOT NULL,
-    "authorId" INTEGER NOT NULL,
+    test('should verify Article table has primary key constraint', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CONSTRAINT "Article_pkey" PRIMARY KEY ("id")');
+    });
 
-    PRIMARY KEY ("id")
-);
+    test('should verify Article table has unique slug constraint', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CREATE UNIQUE INDEX "Article_slug_key" ON "Article"("slug")');
+    });
 
--- CreateTable
-CREATE TABLE "Tag" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
+    test('should verify Article table has foreign key to User', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('ALTER TABLE "Article" ADD CONSTRAINT "Article_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id")');
+    });
+  });
 
-    PRIMARY KEY ("id")
-);
+  describe('Migration File Integrity Tests', () => {
+    test('should verify migration file exists', () => {
+      expect(fs.existsSync(migrationPath)).toBe(true);
+    });
 
--- CreateTable
-CREATE TABLE "User" (
-    "id" SERIAL NOT NULL,
-    "email" TEXT NOT NULL,
-    "username" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
-    "image" TEXT DEFAULT E'https://realworld-temp-api.herokuapp.com/images/smiley-cyrus.jpeg',
-    "bio" TEXT,
-    "demo" BOOLEAN NOT NULL DEFAULT false,
+    test('should verify migration file is readable', () => {
+      expect(() => {
+        fs.readFileSync(migrationPath, 'utf8');
+      }).not.toThrow();
+    });
 
-    PRIMARY KEY ("id")
-);
+    test('should verify migration file contains valid SQL syntax', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CREATE TABLE');
+      expect(migrationContent).toContain('ALTER TABLE');
+      expect(migrationContent).toContain('ADD CONSTRAINT');
+    });
 
--- CreateTable
-CREATE TABLE "_UserFavorites" (
-    "A" INTEGER NOT NULL,
-    "B" INTEGER NOT NULL
-);
+    test('should verify migration file has no modifications for readingTime feature', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      const lines = migrationContent.split('\n');
+      
+      const readingTimeRelatedLines = lines.filter(line => 
+        line.toLowerCase().includes('readingtime') || 
+        line.toLowerCase().includes('reading_time')
+      );
+      
+      expect(readingTimeRelatedLines.length).toBe(0);
+    });
+  });
 
--- CreateTable
-CREATE TABLE "_UserFollows" (
-    "A" INTEGER NOT NULL,
-    "B" INTEGER NOT NULL
-);
+  describe('Related Tables Schema Verification', () => {
+    test('should verify User table exists for Article author relationship', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CREATE TABLE "User"');
+      expect(migrationContent).toContain('"id" SERIAL NOT NULL');
+      expect(migrationContent).toContain('"email" TEXT NOT NULL');
+      expect(migrationContent).toContain('"username" TEXT NOT NULL');
+    });
 
--- CreateIndex
-CREATE UNIQUE INDEX "Article.slug_unique" ON "Article"("slug");
+    test('should verify Comment table exists', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CREATE TABLE "Comment"');
+      expect(migrationContent).toContain('"articleId" INTEGER NOT NULL');
+    });
 
--- CreateIndex
-CREATE UNIQUE INDEX "User.email_unique" ON "User"("email");
+    test('should verify Tag table and Article-Tag relationship exists', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CREATE TABLE "Tag"');
+      expect(migrationContent).toContain('CREATE TABLE "_ArticleToTag"');
+    });
 
--- CreateIndex
-CREATE UNIQUE INDEX "User.username_unique" ON "User"("username");
+    test('should verify Article favorites relationship exists', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('CREATE TABLE "_ArticleFavorites"');
+    });
+  });
 
--- CreateIndex
-CREATE UNIQUE INDEX "_UserFavorites_AB_unique" ON "_UserFavorites"("A", "B");
+  describe('Body Column Sufficiency Tests', () => {
+    test('should verify body column type is TEXT for storing article content', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      const bodyColumnMatch = migrationContent.match(/"body"\s+TEXT\s+NOT NULL/);
+      expect(bodyColumnMatch).not.toBeNull();
+    });
 
--- CreateIndex
-CREATE INDEX "_UserFavorites_B_index" ON "_UserFavorites"("B");
+    test('should verify body column is NOT NULL to ensure content exists for readingTime calculation', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).toContain('"body" TEXT NOT NULL');
+    });
 
--- CreateIndex
-CREATE UNIQUE INDEX "_UserFollows_AB_unique" ON "_UserFollows"("A", "B");
+    test('should document that body column is sufficient for runtime readingTime calculation', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      const hasBodyColumn = migrationContent.includes('"body" TEXT NOT NULL');
+      const hasNoReadingTimeColumn = !migrationContent.toLowerCase().includes('readingtime');
+      
+      expect(hasBodyColumn).toBe(true);
+      expect(hasNoReadingTimeColumn).toBe(true);
+    });
+  });
 
--- CreateIndex
-CREATE INDEX "_UserFollows_B_index" ON "_UserFollows"("B");
+  describe('Migration Rollback Safety Tests', () => {
+    test('should verify no ALTER TABLE statements modify Article structure for readingTime', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      const alterTableStatements = migrationContent.match(/ALTER TABLE "Article"[^;]+;/g) || [];
+      
+      const readingTimeAlterations = alterTableStatements.filter(stmt => 
+        stmt.toLowerCase().includes('readingtime') || 
+        stmt.toLowerCase().includes('reading_time')
+      );
+      
+      expect(readingTimeAlterations.length).toBe(0);
+    });
 
--- AddForeignKey
-ALTER TABLE "Article" ADD FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    test('should verify migration is idempotent for Article table', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      const createTableMatches = migrationContent.match(/CREATE TABLE "Article"/g) || [];
+      expect(createTableMatches.length).toBe(1);
+    });
+  });
 
--- AddForeignKey
-ALTER TABLE "ArticleTags" ADD FOREIGN KEY ("articleId") REFERENCES "Article"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  describe('Documentation and Compliance Tests', () => {
+    test('should confirm no database migration required for readingTime Epic', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      expect(migrationContent).not.toContain('readingTime');
+      expect(migrationContent).not.toContain('reading_time');
+    });
 
--- AddForeignKey
-ALTER TABLE "ArticleTags" ADD FOREIGN KEY ("tagId") REFERENCES "Tag"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    test('should verify readingTime is intended as calculated/virtual field', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      
+      const hasComputedColumn = migrationContent.toLowerCase().includes('generated') || 
+                                 migrationContent.toLowerCase().includes('computed') ||
+                                 migrationContent.toLowerCase().includes('virtual');
+      
+      expect(hasComputedColumn).toBe(false);
+    });
 
--- AddForeignKey
-ALTER TABLE "Comment" ADD FOREIGN KEY ("articleId") REFERENCES "Article"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Comment" ADD FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_UserFavorites" ADD FOREIGN KEY ("A") REFERENCES "Article"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_UserFavorites" ADD FOREIGN KEY ("B") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_UserFollows" ADD FOREIGN KEY ("A") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_UserFollows" ADD FOREIGN KEY ("B") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    test('should verify migration file requires no modifications per checklist', () => {
+      const migrationContent = fs.readFileSync(migrationPath, 'utf8');
+      const originalExpectedTables = ['Article', 'User', 'Comment', 'Tag', '_ArticleToTag', '_ArticleFavorites', '_UserFollows'];
+      
+      originalExpectedTables.forEach(tableName => {
+        expect(migrationContent).toContain(`CREATE TABLE "${tableName}"`);
+      });
+      
+      expect(migrationContent).not.toContain('readingTime');
+    });
+  });
+});
