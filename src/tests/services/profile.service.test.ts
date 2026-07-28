@@ -1,145 +1,123 @@
-import prismaMock from '../prisma-mock';
-import { followUser, getProfile, unfollowUser } from '../../app/routes/profile/profile.service';
+import { expect } from 'chai';
+import sinon from 'sinon';
+import ProfileService from '../../services/profile.service';
+import User from '../../models/user.model';
 
 describe('ProfileService', () => {
-  describe('getProfile', () => {
-    test('should return a following property', async () => {
-      // Given
-      const username = 'RealWorld';
-      const id = 123;
+  let profileService: ProfileService;
+  let userModelStub: sinon.SinonStub;
 
-      const mockedResponse = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-        followedBy: [],
+  beforeEach(() => {
+    profileService = new ProfileService();
+    userModelStub = sinon.stub(User, 'findOne');
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  describe('getProfile', () => {
+    it('should return a user profile with following status', async () => {
+      const mockUser = {
+        _id: 'user123',
+        username: 'testuser',
+        bio: 'Test bio',
+        image: 'http://example.com/image.jpg',
+        following: ['follower123']
       };
 
-      // When
-      // @ts-ignore
-      prismaMock.user.findUnique.mockResolvedValue(mockedResponse);
+      userModelStub.resolves(mockUser);
 
-      // Then
-      await expect(getProfile(username, id)).resolves.toHaveProperty('following');
+      const result = await profileService.getProfile('testuser', 'follower123');
+
+      expect(result).to.have.property('username', 'testuser');
+      expect(result).to.have.property('bio', 'Test bio');
+      expect(result).to.have.property('image', 'http://example.com/image.jpg');
+      expect(result).to.have.property('following', true);
     });
 
-    test('should throw an error if no user is found', async () => {
-      // Given
-      const username = 'RealWorld';
-      const id = 123;
+    it('should return a user profile without following status when no current user', async () => {
+      const mockUser = {
+        _id: 'user123',
+        username: 'testuser',
+        bio: 'Test bio',
+        image: 'http://example.com/image.jpg',
+        following: []
+      };
 
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      userModelStub.resolves(mockUser);
 
-      // Then
-      await expect(getProfile(username, id)).rejects.toThrowError();
+      const result = await profileService.getProfile('testuser', null);
+
+      expect(result).to.have.property('username', 'testuser');
+      expect(result).to.have.property('following', false);
+    });
+
+    it('should throw error when user not found', async () => {
+      userModelStub.resolves(null);
+
+      try {
+        await profileService.getProfile('nonexistent', null);
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error.message).to.equal('User not found');
+      }
     });
   });
 
   describe('followUser', () => {
-    test('shoud return a following property', async () => {
-      // Given
-      const usernamePayload = 'AnotherUser';
-      const id = 123;
-
-      const mockedAuthUser = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-        followedBy: [],
+    it('should add user to following list', async () => {
+      const currentUser = {
+        _id: 'user123',
+        username: 'currentuser',
+        following: [],
+        save: sinon.stub().resolves()
       };
 
-      const mockedResponse = {
-        id: 123,
-        username: 'AnotherUser',
-        email: 'another@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-        followedBy: [],
+      const targetUser = {
+        _id: 'target123',
+        username: 'targetuser',
+        bio: 'Target bio',
+        image: 'http://example.com/target.jpg',
+        following: []
       };
 
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(mockedAuthUser);
-      prismaMock.user.update.mockResolvedValue(mockedResponse);
+      userModelStub.onFirstCall().resolves(currentUser);
+      userModelStub.onSecondCall().resolves(targetUser);
 
-      // Then
-      await expect(followUser(usernamePayload, id)).resolves.toHaveProperty('following');
-    });
+      const result = await profileService.followUser('currentuser', 'targetuser');
 
-    test('shoud throw an error if no user is found', async () => {
-      // Given
-      const usernamePayload = 'AnotherUser';
-      const id = 123;
-
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(null);
-
-      // Then
-      await expect(followUser(usernamePayload, id)).rejects.toThrowError();
+      expect(currentUser.following).to.include('target123');
+      expect(result).to.have.property('username', 'targetuser');
+      expect(result).to.have.property('following', true);
     });
   });
 
   describe('unfollowUser', () => {
-    test('shoud return a following property', async () => {
-      // Given
-      const usernamePayload = 'AnotherUser';
-      const id = 123;
-
-      const mockedAuthUser = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-        followedBy: [],
+    it('should remove user from following list', async () => {
+      const currentUser = {
+        _id: 'user123',
+        username: 'currentuser',
+        following: ['target123'],
+        save: sinon.stub().resolves()
       };
 
-      const mockedResponse = {
-        id: 123,
-        username: 'AnotherUser',
-        email: 'another@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-        followedBy: [],
+      const targetUser = {
+        _id: 'target123',
+        username: 'targetuser',
+        bio: 'Target bio',
+        image: 'http://example.com/target.jpg',
+        following: []
       };
 
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(mockedAuthUser);
-      prismaMock.user.update.mockResolvedValue(mockedResponse);
+      userModelStub.onFirstCall().resolves(currentUser);
+      userModelStub.onSecondCall().resolves(targetUser);
 
-      // Then
-      await expect(unfollowUser(usernamePayload, id)).resolves.toHaveProperty('following');
-    });
+      const result = await profileService.unfollowUser('currentuser', 'targetuser');
 
-    test('shoud throw an error if no user is found', async () => {
-      // Given
-      const usernamePayload = 'AnotherUser';
-      const id = 123;
-
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(null);
-
-      // Then
-      await expect(unfollowUser(usernamePayload, id)).rejects.toThrowError();
+      expect(currentUser.following).to.not.include('target123');
+      expect(result).to.have.property('username', 'targetuser');
+      expect(result).to.have.property('following', false);
     });
   });
 });
