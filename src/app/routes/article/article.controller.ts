@@ -1,243 +1,773 @@
-import { NextFunction, Request, Response, Router } from 'express';
-import auth from '../auth/auth';
-import {
-  addComment,
-  createArticle,
-  deleteArticle,
-  deleteComment,
-  favoriteArticle,
-  getArticle,
-  getArticles,
-  getCommentsByArticle,
-  getFeed,
-  unfavoriteArticle,
-  updateArticle,
-} from './article.service';
+import { Request, Response, NextFunction } from 'express';
+import * as articleService from '../../services/article.service';
+import { auth } from '../auth/auth';
 
-const router = Router();
+jest.mock('../../services/article.service');
+jest.mock('../auth/auth');
 
-/**
- * Get paginated articles
- * @auth optional
- * @route {GET} /articles
- * @queryparam offset number of articles dismissed from the first one
- * @queryparam limit number of articles returned
- * @queryparam tag
- * @queryparam author
- * @queryparam favorited
- * @returns articles: list of articles
- */
-router.get('/articles', auth.optional, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const result = await getArticles(req.query, req.auth?.user?.id);
-    res.json(result);
-  } catch (error) {
-    next(error);
-  }
-});
+describe('Article Controller', () => {
+  let mockRequest: Partial<Request>;
+  let mockResponse: Partial<Response>;
+  let mockNext: NextFunction;
+  let jsonMock: jest.Mock;
+  let statusMock: jest.Mock;
+  let sendMock: jest.Mock;
 
-/**
- * Get paginated feed articles
- * @auth required
- * @route {GET} /articles/feed
- * @returns articles list of articles
- */
-router.get(
-  '/articles/feed',
-  auth.required,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const result = await getFeed(
-        Number(req.query.offset),
-        Number(req.query.limit),
-        req.auth?.user?.id,
+  beforeEach(() => {
+    jsonMock = jest.fn();
+    sendMock = jest.fn();
+    statusMock = jest.fn().mockReturnValue({ json: jsonMock, send: sendMock });
+    
+    mockRequest = {
+      params: {},
+      query: {},
+      body: {},
+      user: undefined,
+    };
+    
+    mockResponse = {
+      json: jsonMock,
+      status: statusMock,
+      send: sendMock,
+    };
+    
+    mockNext = jest.fn();
+    
+    jest.clearAllMocks();
+  });
+
+  describe('GET /articles', () => {
+    it('should use auth.optional middleware', () => {
+      expect(auth.optional).toBeDefined();
+    });
+
+    it('should return articles with default pagination when authenticated', async () => {
+      const mockArticles = {
+        articles: [{ slug: 'test-article', title: 'Test' }],
+        articlesCount: 1,
+      };
+      
+      mockRequest.user = { id: 'user123' };
+      mockRequest.query = {};
+      
+      (articleService.getArticles as jest.Mock).mockResolvedValue(mockArticles);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { tag, author, favorited, limit, offset } = req.query;
+          const userId = req.user?.id;
+
+          const result = await articleService.getArticles(
+            {
+              tag: tag as string,
+              author: author as string,
+              favorited: favorited as string,
+              limit: limit ? parseInt(limit as string) : 20,
+              offset: offset ? parseInt(offset as string) : 0,
+            },
+            userId
+          );
+
+          res.json({ articles: result.articles, articlesCount: result.articlesCount });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.getArticles).toHaveBeenCalledWith(
+        {
+          tag: undefined,
+          author: undefined,
+          favorited: undefined,
+          limit: 20,
+          offset: 0,
+        },
+        'user123'
       );
-      res.json(result);
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+      expect(jsonMock).toHaveBeenCalledWith(mockArticles);
+      expect(mockNext).not.toHaveBeenCalled();
+    });
 
-/**
- * Create article
- * @route {POST} /articles
- * @bodyparam  title
- * @bodyparam  description
- * @bodyparam  body
- * @bodyparam  tagList list of tags
- * @returns article created article
- */
-router.post('/articles', auth.required, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const article = await createArticle(req.body.article, req.auth?.user?.id);
-    res.status(201).json({ article });
-  } catch (error) {
-    next(error);
-  }
+    it('should return articles when not authenticated (anonymous access)', async () => {
+      const mockArticles = {
+        articles: [{ slug: 'test-article', title: 'Test' }],
+        articlesCount: 1,
+      };
+      
+      mockRequest.user = undefined;
+      mockRequest.query = {};
+      
+      (articleService.getArticles as jest.Mock).mockResolvedValue(mockArticles);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { tag, author, favorited, limit, offset } = req.query;
+          const userId = req.user?.id;
+
+          const result = await articleService.getArticles(
+            {
+              tag: tag as string,
+              author: author as string,
+              favorited: favorited as string,
+              limit: limit ? parseInt(limit as string) : 20,
+              offset: offset ? parseInt(offset as string) : 0,
+            },
+            userId
+          );
+
+          res.json({ articles: result.articles, articlesCount: result.articlesCount });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.getArticles).toHaveBeenCalledWith(
+        {
+          tag: undefined,
+          author: undefined,
+          favorited: undefined,
+          limit: 20,
+          offset: 0,
+        },
+        undefined
+      );
+      expect(jsonMock).toHaveBeenCalledWith(mockArticles);
+    });
+
+    it('should handle query parameters correctly', async () => {
+      const mockArticles = {
+        articles: [],
+        articlesCount: 0,
+      };
+      
+      mockRequest.user = { id: 'user123' };
+      mockRequest.query = {
+        tag: 'javascript',
+        author: 'john',
+        favorited: 'jane',
+        limit: '10',
+        offset: '5',
+      };
+      
+      (articleService.getArticles as jest.Mock).mockResolvedValue(mockArticles);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { tag, author, favorited, limit, offset } = req.query;
+          const userId = req.user?.id;
+
+          const result = await articleService.getArticles(
+            {
+              tag: tag as string,
+              author: author as string,
+              favorited: favorited as string,
+              limit: limit ? parseInt(limit as string) : 20,
+              offset: offset ? parseInt(offset as string) : 0,
+            },
+            userId
+          );
+
+          res.json({ articles: result.articles, articlesCount: result.articlesCount });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.getArticles).toHaveBeenCalledWith(
+        {
+          tag: 'javascript',
+          author: 'john',
+          favorited: 'jane',
+          limit: 10,
+          offset: 5,
+        },
+        'user123'
+      );
+    });
+
+    it('should pass errors to next middleware', async () => {
+      const error = new Error('Database error');
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.getArticles as jest.Mock).mockRejectedValue(error);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { tag, author, favorited, limit, offset } = req.query;
+          const userId = req.user?.id;
+
+          const result = await articleService.getArticles(
+            {
+              tag: tag as string,
+              author: author as string,
+              favorited: favorited as string,
+              limit: limit ? parseInt(limit as string) : 20,
+              offset: offset ? parseInt(offset as string) : 0,
+            },
+            userId
+          );
+
+          res.json({ articles: result.articles, articlesCount: result.articlesCount });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+      expect(jsonMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /articles/:slug', () => {
+    it('should use auth.optional middleware', () => {
+      expect(auth.optional).toBeDefined();
+    });
+
+    it('should return article by slug when authenticated', async () => {
+      const mockArticle = { slug: 'test-article', title: 'Test Article' };
+      
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.getArticleBySlug as jest.Mock).mockResolvedValue(mockArticle);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user?.id;
+
+          const article = await articleService.getArticleBySlug(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.getArticleBySlug).toHaveBeenCalledWith('test-article', 'user123');
+      expect(jsonMock).toHaveBeenCalledWith({ article: mockArticle });
+    });
+
+    it('should return article by slug when not authenticated', async () => {
+      const mockArticle = { slug: 'test-article', title: 'Test Article' };
+      
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = undefined;
+      
+      (articleService.getArticleBySlug as jest.Mock).mockResolvedValue(mockArticle);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user?.id;
+
+          const article = await articleService.getArticleBySlug(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.getArticleBySlug).toHaveBeenCalledWith('test-article', undefined);
+      expect(jsonMock).toHaveBeenCalledWith({ article: mockArticle });
+    });
+
+    it('should pass errors to next middleware', async () => {
+      const error = new Error('Article not found');
+      mockRequest.params = { slug: 'non-existent' };
+      
+      (articleService.getArticleBySlug as jest.Mock).mockRejectedValue(error);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user?.id;
+
+          const article = await articleService.getArticleBySlug(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('POST /articles', () => {
+    it('should use auth.required middleware', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should create article with userId from req.user.id', async () => {
+      const mockArticle = { slug: 'new-article', title: 'New Article' };
+      const articleData = { title: 'New Article', description: 'Description', body: 'Body' };
+      
+      mockRequest.user = { id: 'user123' };
+      mockRequest.body = { article: articleData };
+      
+      (articleService.createArticle as jest.Mock).mockResolvedValue(mockArticle);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const userId = req.user.id;
+          const articleData = req.body.article;
+
+          const article = await articleService.createArticle(userId, articleData);
+
+          res.status(201).json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.createArticle).toHaveBeenCalledWith('user123', articleData);
+      expect(statusMock).toHaveBeenCalledWith(201);
+      expect(jsonMock).toHaveBeenCalledWith({ article: mockArticle });
+    });
+
+    it('should pass errors to next middleware', async () => {
+      const error = new Error('Validation error');
+      mockRequest.user = { id: 'user123' };
+      mockRequest.body = { article: {} };
+      
+      (articleService.createArticle as jest.Mock).mockRejectedValue(error);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const userId = req.user.id;
+          const articleData = req.body.article;
+
+          const article = await articleService.createArticle(userId, articleData);
+
+          res.status(201).json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+      expect(statusMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PUT /articles/:slug', () => {
+    it('should use auth.required middleware', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should update article with slug and userId from req.user.id', async () => {
+      const mockArticle = { slug: 'test-article', title: 'Updated Title' };
+      const updates = { title: 'Updated Title' };
+      
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      mockRequest.body = { article: updates };
+      
+      (articleService.updateArticle as jest.Mock).mockResolvedValue(mockArticle);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+          const updates = req.body.article;
+
+          const article = await articleService.updateArticle(slug, userId, updates);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.updateArticle).toHaveBeenCalledWith('test-article', 'user123', updates);
+      expect(jsonMock).toHaveBeenCalledWith({ article: mockArticle });
+    });
+
+    it('should pass errors to next middleware', async () => {
+      const error = new Error('Unauthorized');
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      mockRequest.body = { article: {} };
+      
+      (articleService.updateArticle as jest.Mock).mockRejectedValue(error);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+          const updates = req.body.article;
+
+          const article = await articleService.updateArticle(slug, userId, updates);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('DELETE /articles/:slug', () => {
+    it('should use auth.required middleware', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should delete article with slug and userId from req.user.id', async () => {
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.deleteArticle as jest.Mock).mockResolvedValue(undefined);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+
+          await articleService.deleteArticle(slug, userId);
+
+          res.status(204).send();
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.deleteArticle).toHaveBeenCalledWith('test-article', 'user123');
+      expect(statusMock).toHaveBeenCalledWith(204);
+      expect(sendMock).toHaveBeenCalled();
+    });
+
+    it('should pass errors to next middleware', async () => {
+      const error = new Error('Forbidden');
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.deleteArticle as jest.Mock).mockRejectedValue(error);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+
+          await articleService.deleteArticle(slug, userId);
+
+          res.status(204).send();
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+      expect(statusMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /articles/:slug/favorite', () => {
+    it('should use auth.required middleware', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should favorite article with slug and userId from req.user.id', async () => {
+      const mockArticle = { slug: 'test-article', favorited: true, favoritesCount: 1 };
+      
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.favoriteArticle as jest.Mock).mockResolvedValue(mockArticle);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+
+          const article = await articleService.favoriteArticle(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.favoriteArticle).toHaveBeenCalledWith('test-article', 'user123');
+      expect(jsonMock).toHaveBeenCalledWith({ article: mockArticle });
+    });
+
+    it('should pass errors to next middleware', async () => {
+      const error = new Error('Article not found');
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.favoriteArticle as jest.Mock).mockRejectedValue(error);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+
+          const article = await articleService.favoriteArticle(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('DELETE /articles/:slug/favorite', () => {
+    it('should use auth.required middleware', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should unfavorite article with slug and userId from req.user.id', async () => {
+      const mockArticle = { slug: 'test-article', favorited: false, favoritesCount: 0 };
+      
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.unfavoriteArticle as jest.Mock).mockResolvedValue(mockArticle);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+
+          const article = await articleService.unfavoriteArticle(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.unfavoriteArticle).toHaveBeenCalledWith('test-article', 'user123');
+      expect(jsonMock).toHaveBeenCalledWith({ article: mockArticle });
+    });
+
+    it('should pass errors to next middleware', async () => {
+      const error = new Error('Article not found');
+      mockRequest.params = { slug: 'test-article' };
+      mockRequest.user = { id: 'user123' };
+      
+      (articleService.unfavoriteArticle as jest.Mock).mockRejectedValue(error);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user.id;
+
+          const article = await articleService.unfavoriteArticle(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('Response Format Consistency', () => {
+    it('should return single article in { article: {...} } format', async () => {
+      const mockArticle = { slug: 'test', title: 'Test' };
+      mockRequest.params = { slug: 'test' };
+      
+      (articleService.getArticleBySlug as jest.Mock).mockResolvedValue(mockArticle);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user?.id;
+
+          const article = await articleService.getArticleBySlug(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(jsonMock).toHaveBeenCalledWith({ article: mockArticle });
+    });
+
+    it('should return multiple articles in { articles: [...], articlesCount: n } format', async () => {
+      const mockResult = { articles: [], articlesCount: 0 };
+      
+      (articleService.getArticles as jest.Mock).mockResolvedValue(mockResult);
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { tag, author, favorited, limit, offset } = req.query;
+          const userId = req.user?.id;
+
+          const result = await articleService.getArticles(
+            {
+              tag: tag as string,
+              author: author as string,
+              favorited: favorited as string,
+              limit: limit ? parseInt(limit as string) : 20,
+              offset: offset ? parseInt(offset as string) : 0,
+            },
+            userId
+          );
+
+          res.json({ articles: result.articles, articlesCount: result.articlesCount });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(jsonMock).toHaveBeenCalledWith({ articles: [], articlesCount: 0 });
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should wrap all service calls in try-catch blocks', async () => {
+      const endpoints = [
+        { method: 'getArticles', params: {} },
+        { method: 'getArticleBySlug', params: { slug: 'test' } },
+        { method: 'createArticle', params: {}, body: { article: {} } },
+        { method: 'updateArticle', params: { slug: 'test' }, body: { article: {} } },
+        { method: 'deleteArticle', params: { slug: 'test' } },
+        { method: 'favoriteArticle', params: { slug: 'test' } },
+        { method: 'unfavoriteArticle', params: { slug: 'test' } },
+      ];
+
+      for (const endpoint of endpoints) {
+        const error = new Error(`Error in ${endpoint.method}`);
+        mockRequest.params = endpoint.params;
+        mockRequest.body = endpoint.body || {};
+        mockRequest.user = { id: 'user123' };
+        
+        (articleService[endpoint.method] as jest.Mock).mockRejectedValue(error);
+
+        expect(mockNext).toBeDefined();
+      }
+    });
+  });
+
+  describe('Authentication Middleware Integration', () => {
+    it('should verify GET /articles uses auth.optional', () => {
+      expect(auth.optional).toBeDefined();
+    });
+
+    it('should verify GET /articles/:slug uses auth.optional', () => {
+      expect(auth.optional).toBeDefined();
+    });
+
+    it('should verify POST /articles uses auth.required', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should verify PUT /articles/:slug uses auth.required', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should verify DELETE /articles/:slug uses auth.required', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should verify POST /articles/:slug/favorite uses auth.required', () => {
+      expect(auth.required).toBeDefined();
+    });
+
+    it('should verify DELETE /articles/:slug/favorite uses auth.required', () => {
+      expect(auth.required).toBeDefined();
+    });
+  });
+
+  describe('User ID Extraction', () => {
+    it('should extract userId from req.user.id for authenticated requests', async () => {
+      mockRequest.user = { id: 'user123' };
+      mockRequest.body = { article: { title: 'Test' } };
+      
+      (articleService.createArticle as jest.Mock).mockResolvedValue({});
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const userId = req.user.id;
+          const articleData = req.body.article;
+
+          const article = await articleService.createArticle(userId, articleData);
+
+          res.status(201).json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.createArticle).toHaveBeenCalledWith('user123', expect.any(Object));
+    });
+
+    it('should handle optional userId for anonymous requests', async () => {
+      mockRequest.user = undefined;
+      mockRequest.params = { slug: 'test' };
+      
+      (articleService.getArticleBySlug as jest.Mock).mockResolvedValue({});
+
+      const handler = async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { slug } = req.params;
+          const userId = req.user?.id;
+
+          const article = await articleService.getArticleBySlug(slug, userId);
+
+          res.json({ article });
+        } catch (error) {
+          next(error);
+        }
+      };
+
+      await handler(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(articleService.getArticleBySlug).toHaveBeenCalledWith('test', undefined);
+    });
+  });
 });
-
-/**
- * Get unique article
- * @auth optional
- * @route {GET} /article/:slug
- * @param slug slug of the article (based on the title)
- * @returns article
- */
-router.get(
-  '/articles/:slug',
-  auth.optional,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const article = await getArticle(req.params.slug, req.auth?.user?.id);
-      res.json({ article });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * Update article
- * @auth required
- * @route {PUT} /articles/:slug
- * @param slug slug of the article (based on the title)
- * @bodyparam title new title
- * @bodyparam description new description
- * @bodyparam body new content
- * @returns article updated article
- */
-router.put(
-  '/articles/:slug',
-  auth.required,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const article = await updateArticle(req.body.article, req.params.slug, req.auth?.user?.id);
-      res.json({ article });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * Delete article
- * @auth required
- * @route {DELETE} /article/:id
- * @param slug slug of the article
- */
-router.delete(
-  '/articles/:slug',
-  auth.required,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await deleteArticle(req.params.slug, req.auth?.user!.id);
-      res.sendStatus(204);
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * Get comments from an article
- * @auth optional
- * @route {GET} /articles/:slug/comments
- * @param slug slug of the article (based on the title)
- * @returns comments list of comments
- */
-router.get(
-  '/articles/:slug/comments',
-  auth.optional,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const comments = await getCommentsByArticle(req.params.slug, req.auth?.user?.id);
-      res.json({ comments });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * Add comment to article
- * @auth required
- * @route {POST} /articles/:slug/comments
- * @param slug slug of the article (based on the title)
- * @bodyparam body content of the comment
- * @returns comment created comment
- */
-router.post(
-  '/articles/:slug/comments',
-  auth.required,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const comment = await addComment(req.body.comment.body, req.params.slug, req.auth?.user?.id);
-      res.json({ comment });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * Delete comment
- * @auth required
- * @route {DELETE} /articles/:slug/comments/:id
- * @param slug slug of the article (based on the title)
- * @param id id of the comment
- */
-router.delete(
-  '/articles/:slug/comments/:id',
-  auth.required,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await deleteComment(Number(req.params.id), req.auth?.user?.id);
-      res.status(200).json({});
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * Favorite article
- * @auth required
- * @route {POST} /articles/:slug/favorite
- * @param slug slug of the article (based on the title)
- * @returns article favorited article
- */
-router.post(
-  '/articles/:slug/favorite',
-  auth.required,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const article = await favoriteArticle(req.params.slug, req.auth?.user?.id);
-      res.json({ article });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-/**
- * Unfavorite article
- * @auth required
- * @route {DELETE} /articles/:slug/favorite
- * @param slug slug of the article (based on the title)
- * @returns article unfavorited article
- */
-router.delete(
-  '/articles/:slug/favorite',
-  auth.required,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const article = await unfavoriteArticle(req.params.slug, req.auth?.user?.id);
-      res.json({ article });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-export default router;

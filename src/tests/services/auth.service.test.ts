@@ -1,254 +1,218 @@
-import * as bcrypt from 'bcryptjs';
-import { createUser, getCurrentUser, login, updateUser } from '../../app/routes/auth/auth.service';
-import prismaMock from '../prisma-mock';
+import { describe, test, expect, beforeEach, afterEach } from '@jest/globals';
+import { registerUser, loginUser, getCurrentUser, updateUser } from '../../services/auth.service';
+import { PrismaClient } from '@prisma/client';
+import * as jwt from 'jsonwebtoken';
+import * as bcrypt from 'bcrypt';
 
-describe('AuthService', () => {
-  describe('createUser', () => {
-    test('should create new user ', async () => {
-      // Given
-      const user = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-      };
+const prisma = new PrismaClient();
 
-      const mockedResponse = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-      };
+describe('Auth Service Tests', () => {
+  let testUserId: number;
+  let testUserEmail: string;
+  let testUserPassword: string;
 
-      // When
-      // @ts-ignore
-      prismaMock.user.create.mockResolvedValue(mockedResponse);
+  beforeEach(async () => {
+    await prisma.$connect();
+    testUserEmail = `test${Date.now()}@example.com`;
+    testUserPassword = 'TestPassword123';
+  });
 
-      // Then
-      await expect(createUser(user)).resolves.toHaveProperty('token');
+  afterEach(async () => {
+    if (testUserId) {
+      await prisma.user.delete({ where: { id: testUserId } }).catch(() => {});
+    }
+    await prisma.user.deleteMany({
+      where: {
+        email: {
+          startsWith: 'test'
+        }
+      }
+    });
+    await prisma.$disconnect();
+  });
+
+  test('should register new user with hashed password', async () => {
+    const result = await registerUser({
+      email: testUserEmail,
+      username: 'testuser',
+      password: testUserPassword
     });
 
-    test('should throw an error when creating new user with empty username ', async () => {
-      // Given
-      const user = {
-        id: 123,
-        username: ' ',
-        email: 'realworld@me',
-        password: '1234',
-      };
+    testUserId = result.user.id;
 
-      // Then
-      const error = String({ errors: { username: ["can't be blank"] } });
-      await expect(createUser(user)).rejects.toThrow(error);
+    expect(result.user).toHaveProperty('email', testUserEmail);
+    expect(result.user).toHaveProperty('username', 'testuser');
+    expect(result.user).toHaveProperty('token');
+    expect(result.user.token).toBeTruthy();
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: testUserId }
     });
 
-    test('should throw an error when creating new user with empty email ', async () => {
-      // Given
-      const user = {
-        id: 123,
-        username: 'RealWorld',
-        email: '  ',
-        password: '1234',
-      };
+    expect(dbUser).toBeTruthy();
+    expect(dbUser?.password).not.toBe(testUserPassword);
+    expect(dbUser?.password).toMatch(/^\$2[aby]\$.{56}$/);
+    const isHashed = await bcrypt.compare(testUserPassword, dbUser!.password);
+    expect(isHashed).toBe(true);
+  });
 
-      // Then
-      const error = String({ errors: { email: ["can't be blank"] } });
-      await expect(createUser(user)).rejects.toThrow(error);
-    });
+  test('should throw 422 for duplicate email during registration', async () => {
+    const userData = {
+      email: testUserEmail,
+      username: 'testuser1',
+      password: testUserPassword
+    };
 
-    test('should throw an error when creating new user with empty password ', async () => {
-      // Given
-      const user = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: ' ',
-      };
+    const firstUser = await registerUser(userData);
+    testUserId = firstUser.user.id;
 
-      // Then
-      const error = String({ errors: { password: ["can't be blank"] } });
-      await expect(createUser(user)).rejects.toThrow(error);
-    });
-
-    test('should throw an exception when creating a new user with already existing user on same username ', async () => {
-      // Given
-      const user = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-      };
-
-      const mockedExistingUser = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-      };
-
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(mockedExistingUser);
-
-      // Then
-      const error = { email: ['has already been taken'] }.toString();
-      await expect(createUser(user)).rejects.toThrow(error);
+    await expect(
+      registerUser({
+        email: testUserEmail,
+        username: 'testuser2',
+        password: testUserPassword
+      })
+    ).rejects.toMatchObject({
+      status: 422,
+      message: 'Email already registered'
     });
   });
 
-  describe('login', () => {
-    test('should return a token', async () => {
-      // Given
-      const user = {
-        email: 'realworld@me',
-        password: '1234',
-      };
-
-      const hashedPassword = await bcrypt.hash(user.password, 10);
-
-      const mockedResponse = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: hashedPassword,
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-      };
-
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(mockedResponse);
-
-      // Then
-      await expect(login(user)).resolves.toHaveProperty('token');
-    });
-
-    test('should throw an error when the email is empty', async () => {
-      // Given
-      const user = {
-        email: ' ',
-        password: '1234',
-      };
-
-      // Then
-      const error = String({ errors: { email: ["can't be blank"] } });
-      await expect(login(user)).rejects.toThrow(error);
-    });
-
-    test('should throw an error when the password is empty', async () => {
-      // Given
-      const user = {
-        email: 'realworld@me',
-        password: ' ',
-      };
-
-      // Then
-      const error = String({ errors: { password: ["can't be blank"] } });
-      await expect(login(user)).rejects.toThrow(error);
-    });
-
-    test('should throw an error when no user is found', async () => {
-      // Given
-      const user = {
-        email: 'realworld@me',
-        password: '1234',
-      };
-
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(null);
-
-      // Then
-      const error = String({ errors: { 'email or password': ['is invalid'] } });
-      await expect(login(user)).rejects.toThrow(error);
-    });
-
-    test('should throw an error if the password is wrong', async () => {
-      // Given
-      const user = {
-        email: 'realworld@me',
-        password: '1234',
-      };
-
-      const hashedPassword = await bcrypt.hash('4321', 10);
-
-      const mockedResponse = {
-        id: 123,
-        username: 'Gerome',
-        email: 'realworld@me',
-        password: hashedPassword,
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-      };
-
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(mockedResponse);
-
-      // Then
-      const error = String({ errors: { 'email or password': ['is invalid'] } });
-      await expect(login(user)).rejects.toThrow(error);
+  test('should throw 422 for invalid email format', async () => {
+    await expect(
+      registerUser({
+        email: 'invalid-email-format',
+        username: 'testuser',
+        password: testUserPassword
+      })
+    ).rejects.toMatchObject({
+      status: 422,
+      message: 'Invalid email format'
     });
   });
 
-  describe('getCurrentUser', () => {
-    test('should return a token', async () => {
-      // Given
-      const id = 123;
-
-      const mockedResponse = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-      };
-
-      // When
-      prismaMock.user.findUnique.mockResolvedValue(mockedResponse);
-
-      // Then
-      await expect(getCurrentUser(id)).resolves.toHaveProperty('token');
+  test('should throw 422 for password too short', async () => {
+    await expect(
+      registerUser({
+        email: testUserEmail,
+        username: 'testuser',
+        password: 'short'
+      })
+    ).rejects.toMatchObject({
+      status: 422,
+      message: 'Password must be at least 8 characters'
     });
   });
 
-  describe('updateUser', () => {
-    test('should return a token', async () => {
-      // Given
-      const user = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-      };
-
-      const mockedResponse = {
-        id: 123,
-        username: 'RealWorld',
-        email: 'realworld@me',
-        password: '1234',
-        bio: null,
-        image: null,
-        token: '',
-        demo: false,
-      };
-
-      // When
-      prismaMock.user.update.mockResolvedValue(mockedResponse);
-
-      // Then
-      await expect(updateUser(user, user.id)).resolves.toHaveProperty('token');
+  test('should authenticate user and return JWT token', async () => {
+    const registerResult = await registerUser({
+      email: testUserEmail,
+      username: 'testuser',
+      password: testUserPassword
     });
+
+    testUserId = registerResult.user.id;
+
+    const loginResult = await loginUser({
+      email: testUserEmail,
+      password: testUserPassword
+    });
+
+    expect(loginResult.user).toHaveProperty('token');
+    expect(loginResult.user.token).toBeTruthy();
+
+    const decoded = jwt.verify(loginResult.user.token, process.env.JWT_SECRET || 'secret');
+    expect(decoded).toHaveProperty('id');
+    expect(decoded).toHaveProperty('email', testUserEmail);
+  });
+
+  test('should throw 401 for invalid email during login', async () => {
+    await expect(
+      loginUser({
+        email: 'nonexistent@example.com',
+        password: testUserPassword
+      })
+    ).rejects.toMatchObject({
+      status: 401,
+      message: 'Invalid email or password'
+    });
+  });
+
+  test('should throw 401 for invalid password during login', async () => {
+    const registerResult = await registerUser({
+      email: testUserEmail,
+      username: 'testuser',
+      password: testUserPassword
+    });
+
+    testUserId = registerResult.user.id;
+
+    await expect(
+      loginUser({
+        email: testUserEmail,
+        password: 'WrongPassword123'
+      })
+    ).rejects.toMatchObject({
+      status: 401,
+      message: 'Invalid email or password'
+    });
+  });
+
+  test('should retrieve current user by id', async () => {
+    const registerResult = await registerUser({
+      email: testUserEmail,
+      username: 'testuser',
+      password: testUserPassword
+    });
+
+    testUserId = registerResult.user.id;
+
+    const currentUser = await getCurrentUser(testUserId);
+
+    expect(currentUser.user).toHaveProperty('id', testUserId);
+    expect(currentUser.user).toHaveProperty('email', testUserEmail);
+    expect(currentUser.user).toHaveProperty('username', 'testuser');
+  });
+
+  test('should update user profile', async () => {
+    const registerResult = await registerUser({
+      email: testUserEmail,
+      username: 'testuser',
+      password: testUserPassword
+    });
+
+    testUserId = registerResult.user.id;
+
+    const updatedBio = 'This is my new bio';
+    const updatedImage = 'https://example.com/avatar.jpg';
+
+    const updateResult = await updateUser(testUserId, {
+      bio: updatedBio,
+      image: updatedImage
+    });
+
+    expect(updateResult.user).toHaveProperty('bio', updatedBio);
+    expect(updateResult.user).toHaveProperty('image', updatedImage);
+    expect(updateResult.user).toHaveProperty('email', testUserEmail);
+  });
+
+  test('should validate password correctly', async () => {
+    const registerResult = await registerUser({
+      email: testUserEmail,
+      username: 'testuser',
+      password: testUserPassword
+    });
+
+    testUserId = registerResult.user.id;
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: testUserId }
+    });
+
+    const validPasswordResult = await bcrypt.compare(testUserPassword, dbUser!.password);
+    expect(validPasswordResult).toBe(true);
+
+    const invalidPasswordResult = await bcrypt.compare('WrongPassword', dbUser!.password);
+    expect(invalidPasswordResult).toBe(false);
   });
 });

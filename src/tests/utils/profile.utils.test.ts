@@ -1,79 +1,198 @@
-import profileMapper from '../../app/routes/profile/profile.utils';
+import { describe, test, expect, jest, beforeEach } from '@jest/globals';
+import { mapUserToProfile, isFollowing } from '../../utils/profile.utils';
+import { User } from '../../models/user.model';
+import { PrismaClient } from '@prisma/client';
 
-describe('ProfileUtils', () => {
-  describe('profileMapper', () => {
-    test('should return a profile', () => {
-      // Given
-      const user = {
-        username: 'RealWorld',
-        bio: 'My happy life',
-        image: null,
-        followedBy: [],
-      };
-      const id = 123;
+// Mock Prisma client
+jest.mock('@prisma/client', () => {
+  const mockPrismaClient = {
+    follow: {
+      findFirst: jest.fn(),
+    },
+  };
+  return {
+    PrismaClient: jest.fn(() => mockPrismaClient),
+  };
+});
 
-      // When
-      const expected = {
-        username: 'RealWorld',
-        bio: 'My happy life',
-        image: null,
-        following: false,
-      };
+const prisma = new PrismaClient();
 
-      // Then
-      expect(profileMapper(user, id)).toEqual(expected);
+describe('Profile Utils', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('should map user to profile format', async () => {
+    const mockUser: User = {
+      id: 1,
+      username: 'testuser',
+      bio: 'Test bio',
+      image: 'https://example.com/image.jpg',
+      email: 'test@example.com',
+      password: 'hashedpassword',
+    };
+
+    const profile = await mapUserToProfile(mockUser);
+
+    expect(profile).toHaveProperty('username');
+    expect(profile).toHaveProperty('bio');
+    expect(profile).toHaveProperty('image');
+    expect(profile).toHaveProperty('following');
+    expect(profile.username).toBe('testuser');
+    expect(profile.bio).toBe('Test bio');
+    expect(profile.image).toBe('https://example.com/image.jpg');
+    expect(profile.following).toBe(false);
+  });
+
+  test('should calculate following status correctly', async () => {
+    const mockUser: User = {
+      id: 1,
+      username: 'testuser',
+      bio: 'Test bio',
+      image: 'https://example.com/image.jpg',
+      email: 'test@example.com',
+      password: 'hashedpassword',
+    };
+
+    const currentUserId = 2;
+
+    // Mock database query to return follow relationship exists
+    (prisma.follow.findFirst as jest.Mock).mockResolvedValue({
+      followerId: currentUserId,
+      followingId: mockUser.id,
     });
 
-    test('should return a profile followed by the user', () => {
-      // Given
-      const user = {
-        username: 'RealWorld',
-        bio: 'My happy life',
-        image: null,
-        followedBy: [
-          {
-            id: 123,
-          },
-        ],
-      };
-      const id = 123;
+    const profile = await mapUserToProfile(mockUser, currentUserId);
 
-      // When
-      const expected = {
-        username: 'RealWorld',
-        bio: 'My happy life',
-        image: null,
-        following: true,
-      };
+    expect(profile.following).toBe(true);
+    expect(prisma.follow.findFirst).toHaveBeenCalledWith({
+      where: {
+        followerId: currentUserId,
+        followingId: mockUser.id,
+      },
+    });
+  });
 
-      // Then
-      expect(profileMapper(user, id)).toEqual(expected);
+  test('should handle null bio and image', async () => {
+    const mockUser: User = {
+      id: 1,
+      username: 'testuser',
+      bio: null,
+      image: null,
+      email: 'test@example.com',
+      password: 'hashedpassword',
+    };
+
+    const profile = await mapUserToProfile(mockUser);
+
+    expect(profile.bio).toBeNull();
+    expect(profile.image).toBeNull();
+    expect(profile.username).toBe('testuser');
+    expect(profile.following).toBe(false);
+  });
+
+  test('should return false when follow relationship does not exist', async () => {
+    const followerId = 1;
+    const followingId = 2;
+
+    (prisma.follow.findFirst as jest.Mock).mockResolvedValue(null);
+
+    const result = await isFollowing(followerId, followingId);
+
+    expect(result).toBe(false);
+    expect(prisma.follow.findFirst).toHaveBeenCalledWith({
+      where: {
+        followerId,
+        followingId,
+      },
+    });
+  });
+
+  test('should return true when follow relationship exists', async () => {
+    const followerId = 1;
+    const followingId = 2;
+
+    (prisma.follow.findFirst as jest.Mock).mockResolvedValue({
+      followerId,
+      followingId,
     });
 
-    test('should return a profile not followed by the user', () => {
-      // Given
-      const user = {
-        username: 'RealWorld',
-        bio: 'My happy life',
-        image: null,
-        followedBy: [
-          {
-            username: 'NotRealWorld',
-          },
-        ],
-      };
-      const id = 123;
+    const result = await isFollowing(followerId, followingId);
 
-      // When
-      const expected = {
-        username: 'RealWorld',
-        bio: 'My happy life',
-        image: null,
-        following: false,
-      };
-
-      // Then
-      expect(profileMapper(user, id)).toEqual(expected);
+    expect(result).toBe(true);
+    expect(prisma.follow.findFirst).toHaveBeenCalledWith({
+      where: {
+        followerId,
+        followingId,
+      },
     });
+  });
+
+  test('should handle mapUserToProfile without currentUserId', async () => {
+    const mockUser: User = {
+      id: 1,
+      username: 'testuser',
+      bio: 'Test bio',
+      image: 'https://example.com/image.jpg',
+      email: 'test@example.com',
+      password: 'hashedpassword',
+    };
+
+    const profile = await mapUserToProfile(mockUser, undefined);
+
+    expect(profile.following).toBe(false);
+    expect(prisma.follow.findFirst).not.toHaveBeenCalled();
+  });
+
+  test('should map user with empty string bio and image', async () => {
+    const mockUser: User = {
+      id: 1,
+      username: 'testuser',
+      bio: '',
+      image: '',
+      email: 'test@example.com',
+      password: 'hashedpassword',
+    };
+
+    const profile = await mapUserToProfile(mockUser);
+
+    expect(profile.bio).toBe('');
+    expect(profile.image).toBe('');
+    expect(profile.username).toBe('testuser');
+    expect(profile.following).toBe(false);
+  });
+
+  test('should handle database error in isFollowing gracefully', async () => {
+    const followerId = 1;
+    const followingId = 2;
+
+    (prisma.follow.findFirst as jest.Mock).mockRejectedValue(
+      new Error('Database connection error')
+    );
+
+    await expect(isFollowing(followerId, followingId)).rejects.toThrow(
+      'Database connection error'
+    );
+  });
+
+  test('should handle database error in mapUserToProfile gracefully', async () => {
+    const mockUser: User = {
+      id: 1,
+      username: 'testuser',
+      bio: 'Test bio',
+      image: 'https://example.com/image.jpg',
+      email: 'test@example.com',
+      password: 'hashedpassword',
+    };
+
+    const currentUserId = 2;
+
+    (prisma.follow.findFirst as jest.Mock).mockRejectedValue(
+      new Error('Database connection error')
+    );
+
+    await expect(mapUserToProfile(mockUser, currentUserId)).rejects.toThrow(
+      'Database connection error'
+    );
   });
 });
