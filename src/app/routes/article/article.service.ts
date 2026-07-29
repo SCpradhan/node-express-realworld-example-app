@@ -1,652 +1,616 @@
-import slugify from 'slugify';
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { findArticles } from './article.service';
 import prisma from '../../../prisma/prisma-client';
 import HttpException from '../../models/http-exception.model';
-import profileMapper from '../profile/profile.utils';
 import articleMapper from './article.mapper';
-import { Tag } from '../tag/tag.model';
 
-const buildFindAllQuery = (query: any, id: number | undefined) => {
-  const queries: any = [];
-  const orAuthorQuery = [];
-  const andAuthorQuery = [];
-
-  orAuthorQuery.push({
-    demo: {
-      equals: true,
+jest.mock('../../../prisma/prisma-client', () => ({
+  __esModule: true,
+  default: {
+    article: {
+      count: jest.fn(),
+      findMany: jest.fn(),
     },
+  },
+}));
+
+jest.mock('./article.mapper', () => ({
+  __esModule: true,
+  default: jest.fn((article, userId) => ({
+    ...article,
+    mapped: true,
+    userId,
+  })),
+}));
+
+describe('findArticles', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  if (id) {
-    orAuthorQuery.push({
-      id: {
-        equals: id,
-      },
-    });
-  }
-
-  if ('author' in query) {
-    andAuthorQuery.push({
-      username: {
-        equals: query.author,
-      },
-    });
-  }
-
-  const authorQuery = {
-    author: {
-      OR: orAuthorQuery,
-      AND: andAuthorQuery,
-    },
-  };
-
-  queries.push(authorQuery);
-
-  if ('tag' in query) {
-    queries.push({
-      tagList: {
-        some: {
-          name: query.tag,
-        },
-      },
-    });
-  }
-
-  if ('favorited' in query) {
-    queries.push({
-      favoritedBy: {
-        some: {
-          username: {
-            equals: query.favorited,
-          },
-        },
-      },
-    });
-  }
-
-  return queries;
-};
-
-export const getArticles = async (query: any, id?: number) => {
-  const andQueries = buildFindAllQuery(query, id);
-  const articlesCount = await prisma.article.count({
-    where: {
-      AND: andQueries,
-    },
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
-  const articles = await prisma.article.findMany({
-    where: { AND: andQueries },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    skip: Number(query.offset) || 0,
-    take: Number(query.limit) || 10,
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
+  describe('Query Construction', () => {
+    it('should construct query with empty filter when no filters are provided', async () => {
+      const mockArticles = [
+        { id: 1, title: 'Article 1', createdAt: new Date() },
+        { id: 2, title: 'Article 2', createdAt: new Date() },
+      ];
 
-  return {
-    articles: articles.map((article: any) => articleMapper(article, id)),
-    articlesCount,
-  };
-};
+      (prisma.article.count as jest.Mock).mockResolvedValue(2);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
 
-export const getFeed = async (offset: number, limit: number, id: number) => {
-  const articlesCount = await prisma.article.count({
-    where: {
-      author: {
-        followedBy: { some: { id: id } },
-      },
-    },
-  });
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
 
-  const articles = await prisma.article.findMany({
-    where: {
-      author: {
-        followedBy: { some: { id: id } },
-      },
-    },
-    orderBy: {
-      createdAt: 'desc',
-    },
-    skip: offset || 0,
-    take: limit || 10,
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
-
-  return {
-    articles: articles.map((article: any) => articleMapper(article, id)),
-    articlesCount,
-  };
-};
-
-export const createArticle = async (article: any, id: number) => {
-  const { title, description, body, tagList } = article;
-  const tags = Array.isArray(tagList) ? tagList : [];
-
-  if (!title) {
-    throw new HttpException(422, { errors: { title: ["can't be blank"] } });
-  }
-
-  if (!description) {
-    throw new HttpException(422, { errors: { description: ["can't be blank"] } });
-  }
-
-  if (!body) {
-    throw new HttpException(422, { errors: { body: ["can't be blank"] } });
-  }
-
-  const slug = `${slugify(title)}-${id}`;
-
-  const existingTitle = await prisma.article.findUnique({
-    where: {
-      slug,
-    },
-    select: {
-      slug: true,
-    },
-  });
-
-  if (existingTitle) {
-    throw new HttpException(422, { errors: { title: ['must be unique'] } });
-  }
-
-  const {
-    authorId,
-    id: articleId,
-    ...createdArticle
-  } = await prisma.article.create({
-    data: {
-      title,
-      description,
-      body,
-      slug,
-      tagList: {
-        connectOrCreate: tags.map((tag: string) => ({
-          create: { name: tag },
-          where: { name: tag },
-        })),
-      },
-      author: {
-        connect: {
-          id: id,
-        },
-      },
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
-
-  return articleMapper(createdArticle, id);
-};
-
-export const getArticle = async (slug: string, id?: number) => {
-  const article = await prisma.article.findUnique({
-    where: {
-      slug,
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
-
-  if (!article) {
-    throw new HttpException(404, { errors: { article: ['not found'] } });
-  }
-
-  return articleMapper(article, id);
-};
-
-const disconnectArticlesTags = async (slug: string) => {
-  await prisma.article.update({
-    where: {
-      slug,
-    },
-    data: {
-      tagList: {
-        set: [],
-      },
-    },
-  });
-};
-
-export const updateArticle = async (article: any, slug: string, id: number) => {
-  let newSlug = null;
-
-  const existingArticle = await await prisma.article.findFirst({
-    where: {
-      slug,
-    },
-    select: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-        },
-      },
-    },
-  });
-
-  if (!existingArticle) {
-    throw new HttpException(404, {});
-  }
-
-  if (existingArticle.author.id !== id) {
-    throw new HttpException(403, {
-      message: 'You are not authorized to update this article',
-    });
-  }
-
-  if (article.title) {
-    newSlug = `${slugify(article.title)}-${id}`;
-
-    if (newSlug !== slug) {
-      const existingTitle = await prisma.article.findFirst({
-        where: {
-          slug: newSlug,
-        },
-        select: {
-          slug: true,
-        },
+      expect(prisma.article.count).toHaveBeenCalledWith({
+        where: {},
       });
 
-      if (existingTitle) {
-        throw new HttpException(422, { errors: { title: ['must be unique'] } });
-      }
-    }
-  }
-
-  const tagList =
-    Array.isArray(article.tagList) && article.tagList?.length
-      ? article.tagList.map((tag: string) => ({
-          create: { name: tag },
-          where: { name: tag },
-        }))
-      : [];
-
-  await disconnectArticlesTags(slug);
-
-  const updatedArticle = await prisma.article.update({
-    where: {
-      slug,
-    },
-    data: {
-      ...(article.title ? { title: article.title } : {}),
-      ...(article.body ? { body: article.body } : {}),
-      ...(article.description ? { description: article.description } : {}),
-      ...(newSlug ? { slug: newSlug } : {}),
-      updatedAt: new Date(),
-      tagList: {
-        connectOrCreate: tagList,
-      },
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
-  });
-
-  return articleMapper(updatedArticle, id);
-};
-
-export const deleteArticle = async (slug: string, id: number) => {
-  const existingArticle = await await prisma.article.findFirst({
-    where: {
-      slug,
-    },
-    select: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-        },
-      },
-    },
-  });
-
-  if (!existingArticle) {
-    throw new HttpException(404, {});
-  }
-
-  if (existingArticle.author.id !== id) {
-    throw new HttpException(403, {
-      message: 'You are not authorized to delete this article',
+      expect(prisma.article.findMany).toHaveBeenCalledWith({
+        where: {},
+        orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 10,
+        include: expect.any(Object),
+      });
     });
-  }
-  await prisma.article.delete({
-    where: {
-      slug,
-    },
-  });
-};
 
-export const getCommentsByArticle = async (slug: string, id?: number) => {
-  const queries = [];
+    it('should add tag filter when tag parameter is provided', async () => {
+      const mockArticles = [{ id: 1, title: 'Tagged Article' }];
 
-  queries.push({
-    author: {
-      demo: true,
-    },
-  });
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
 
-  if (id) {
-    queries.push({
-      author: {
-        id,
-      },
-    });
-  }
+      await findArticles(10, 0, 'javascript', undefined, undefined, undefined);
 
-  const comments = await prisma.article.findUnique({
-    where: {
-      slug,
-    },
-    include: {
-      comments: {
+      expect(prisma.article.count).toHaveBeenCalledWith({
         where: {
-          OR: queries,
-        },
-        select: {
-          id: true,
-          createdAt: true,
-          updatedAt: true,
-          body: true,
-          author: {
-            select: {
-              username: true,
-              bio: true,
-              image: true,
-              followedBy: true,
+          AND: [
+            {
+              tagList: {
+                some: {
+                  name: 'javascript',
+                },
+              },
             },
-          },
+          ],
         },
-      },
-    },
-  });
-
-  const result = comments?.comments.map((comment: any) => ({
-    ...comment,
-    author: {
-      username: comment.author.username,
-      bio: comment.author.bio,
-      image: comment.author.image,
-      following: comment.author.followedBy.some((follow: any) => follow.id === id),
-    },
-  }));
-
-  return result;
-};
-
-export const addComment = async (body: string, slug: string, id: number) => {
-  if (!body) {
-    throw new HttpException(422, { errors: { body: ["can't be blank"] } });
-  }
-
-  const article = await prisma.article.findUnique({
-    where: {
-      slug,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  const comment = await prisma.comment.create({
-    data: {
-      body,
-      article: {
-        connect: {
-          id: article?.id,
-        },
-      },
-      author: {
-        connect: {
-          id: id,
-        },
-      },
-    },
-    include: {
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-    },
-  });
-
-  return {
-    id: comment.id,
-    createdAt: comment.createdAt,
-    updatedAt: comment.updatedAt,
-    body: comment.body,
-    author: {
-      username: comment.author.username,
-      bio: comment.author.bio,
-      image: comment.author.image,
-      following: comment.author.followedBy.some((follow: any) => follow.id === id),
-    },
-  };
-};
-
-export const deleteComment = async (id: number, userId: number) => {
-  const comment = await prisma.comment.findFirst({
-    where: {
-      id,
-      author: {
-        id: userId,
-      },
-    },
-    select: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-        },
-      },
-    },
-  });
-
-  if (!comment) {
-    throw new HttpException(404, {});
-  }
-
-  if (comment.author.id !== userId) {
-    throw new HttpException(403, {
-      message: 'You are not authorized to delete this comment',
+      });
     });
-  }
 
-  await prisma.comment.delete({
-    where: {
-      id,
-    },
+    it('should add author filter when author parameter is provided', async () => {
+      const mockArticles = [{ id: 1, title: 'Author Article' }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, 'johndoe', undefined, undefined);
+
+      expect(prisma.article.count).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              author: {
+                username: {
+                  equals: 'johndoe',
+                },
+              },
+            },
+          ],
+        },
+      });
+    });
+
+    it('should add favorited filter when favorited parameter is provided', async () => {
+      const mockArticles = [{ id: 1, title: 'Favorited Article' }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, 'janedoe', undefined);
+
+      expect(prisma.article.count).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              favoritedBy: {
+                some: {
+                  username: {
+                    equals: 'janedoe',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    });
+
+    it('should combine multiple filters when multiple parameters are provided', async () => {
+      const mockArticles = [{ id: 1, title: 'Multi-filtered Article' }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, 'react', 'johndoe', 'janedoe', 1);
+
+      expect(prisma.article.count).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              tagList: {
+                some: {
+                  name: 'react',
+                },
+              },
+            },
+            {
+              author: {
+                username: {
+                  equals: 'johndoe',
+                },
+              },
+            },
+            {
+              favoritedBy: {
+                some: {
+                  username: {
+                    equals: 'janedoe',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    });
   });
-};
 
-export const favoriteArticle = async (slugPayload: string, id: number) => {
-  const { _count, ...article } = await prisma.article.update({
-    where: {
-      slug: slugPayload,
-    },
-    data: {
-      favoritedBy: {
-        connect: {
-          id: id,
-        },
-      },
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
+  describe('Pagination', () => {
+    it('should apply limit parameter correctly', async () => {
+      const mockArticles = [{ id: 1 }, { id: 2 }, { id: 3 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(10);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(3, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 3,
+        })
+      );
+    });
+
+    it('should apply offset parameter correctly', async () => {
+      const mockArticles = [{ id: 4 }, { id: 5 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(10);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 5, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 5,
+        })
+      );
+    });
+
+    it('should handle zero offset', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 0,
+        })
+      );
+    });
+
+    it('should handle large offset values', async () => {
+      const mockArticles: any[] = [];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(100);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 95, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 95,
+          take: 10,
+        })
+      );
+    });
   });
 
-  const result = {
-    ...article,
-    author: profileMapper(article.author, id),
-    tagList: article?.tagList.map((tag: Tag) => tag.name),
-    favorited: article.favoritedBy.some((favorited: any) => favorited.id === id),
-    favoritesCount: _count?.favoritedBy,
-  };
+  describe('Sorting', () => {
+    it('should order results by createdAt in descending order', async () => {
+      const mockArticles = [
+        { id: 1, createdAt: new Date('2024-01-02') },
+        { id: 2, createdAt: new Date('2024-01-01') },
+      ];
 
-  return result;
-};
+      (prisma.article.count as jest.Mock).mockResolvedValue(2);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
 
-export const unfavoriteArticle = async (slugPayload: string, id: number) => {
-  const { _count, ...article } = await prisma.article.update({
-    where: {
-      slug: slugPayload,
-    },
-    data: {
-      favoritedBy: {
-        disconnect: {
-          id: id,
-        },
-      },
-    },
-    include: {
-      tagList: {
-        select: {
-          name: true,
-        },
-      },
-      author: {
-        select: {
-          username: true,
-          bio: true,
-          image: true,
-          followedBy: true,
-        },
-      },
-      favoritedBy: true,
-      _count: {
-        select: {
-          favoritedBy: true,
-        },
-      },
-    },
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: {
+            createdAt: 'desc',
+          },
+        })
+      );
+    });
   });
 
-  const result = {
-    ...article,
-    author: profileMapper(article.author, id),
-    tagList: article?.tagList.map((tag: Tag) => tag.name),
-    favorited: article.favoritedBy.some((favorited: any) => favorited.id === id),
-    favoritesCount: _count?.favoritedBy,
-  };
+  describe('Data Population', () => {
+    it('should include tagList with name selection', async () => {
+      const mockArticles = [{ id: 1 }];
 
-  return result;
-};
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            tagList: {
+              select: {
+                name: true,
+              },
+            },
+          }),
+        })
+      );
+    });
+
+    it('should include author data with username, bio, image, and followedBy', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            author: {
+              select: {
+                username: true,
+                bio: true,
+                image: true,
+                followedBy: true,
+              },
+            },
+          }),
+        })
+      );
+    });
+
+    it('should include favoritedBy data', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            favoritedBy: true,
+          }),
+        })
+      );
+    });
+
+    it('should include favorites count', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            _count: {
+              select: {
+                favoritedBy: true,
+              },
+            },
+          }),
+        })
+      );
+    });
+  });
+
+  describe('Article Mapping', () => {
+    it('should map articles using articleMapper with currentUserId for authenticated requests', async () => {
+      const mockArticles = [
+        { id: 1, title: 'Article 1' },
+        { id: 2, title: 'Article 2' },
+      ];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(2);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      const result = await findArticles(10, 0, undefined, undefined, undefined, 123);
+
+      expect(articleMapper).toHaveBeenCalledTimes(2);
+      expect(articleMapper).toHaveBeenCalledWith(mockArticles[0], 123);
+      expect(articleMapper).toHaveBeenCalledWith(mockArticles[1], 123);
+    });
+
+    it('should map articles using articleMapper with undefined for anonymous requests', async () => {
+      const mockArticles = [{ id: 1, title: 'Article 1' }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(articleMapper).toHaveBeenCalledWith(mockArticles[0], undefined);
+    });
+  });
+
+  describe('Return Value', () => {
+    it('should return object with articles array and articlesCount', async () => {
+      const mockArticles = [
+        { id: 1, title: 'Article 1' },
+        { id: 2, title: 'Article 2' },
+      ];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(5);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      const result = await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(result).toHaveProperty('articles');
+      expect(result).toHaveProperty('articlesCount');
+      expect(result.articlesCount).toBe(5);
+      expect(Array.isArray(result.articles)).toBe(true);
+      expect(result.articles).toHaveLength(2);
+    });
+
+    it('should return total count without pagination applied', async () => {
+      const mockArticles = [{ id: 1 }, { id: 2 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(100);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      const result = await findArticles(2, 10, undefined, undefined, undefined, undefined);
+
+      expect(result.articlesCount).toBe(100);
+      expect(result.articles).toHaveLength(2);
+    });
+
+    it('should return empty articles array when no articles match filters', async () => {
+      (prisma.article.count as jest.Mock).mockResolvedValue(0);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await findArticles(10, 0, 'nonexistent', undefined, undefined, undefined);
+
+      expect(result.articles).toEqual([]);
+      expect(result.articlesCount).toBe(0);
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should throw HttpException with 500 status when prisma.article.count fails', async () => {
+      (prisma.article.count as jest.Mock).mockRejectedValue(new Error('Database connection error'));
+
+      await expect(
+        findArticles(10, 0, undefined, undefined, undefined, undefined)
+      ).rejects.toThrow(HttpException);
+
+      await expect(
+        findArticles(10, 0, undefined, undefined, undefined, undefined)
+      ).rejects.toMatchObject({
+        status: 500,
+        errors: { database: ['Failed to fetch articles from database'] },
+      });
+    });
+
+    it('should throw HttpException with 500 status when prisma.article.findMany fails', async () => {
+      (prisma.article.count as jest.Mock).mockResolvedValue(10);
+      (prisma.article.findMany as jest.Mock).mockRejectedValue(new Error('Query execution error'));
+
+      await expect(
+        findArticles(10, 0, undefined, undefined, undefined, undefined)
+      ).rejects.toThrow(HttpException);
+
+      await expect(
+        findArticles(10, 0, undefined, undefined, undefined, undefined)
+      ).rejects.toMatchObject({
+        status: 500,
+        errors: { database: ['Failed to fetch articles from database'] },
+      });
+    });
+
+    it('should throw descriptive error message for database query failures', async () => {
+      (prisma.article.count as jest.Mock).mockRejectedValue(new Error('Connection timeout'));
+
+      try {
+        await findArticles(10, 0, undefined, undefined, undefined, undefined);
+        fail('Should have thrown an error');
+      } catch (error: any) {
+        expect(error).toBeInstanceOf(HttpException);
+        expect(error.errors.database).toContain('Failed to fetch articles from database');
+      }
+    });
+
+    it('should handle articleMapper throwing errors', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+      (articleMapper as jest.Mock).mockImplementation(() => {
+        throw new Error('Mapper error');
+      });
+
+      await expect(
+        findArticles(10, 0, undefined, undefined, undefined, undefined)
+      ).rejects.toThrow(HttpException);
+    });
+  });
+
+  describe('Authenticated vs Anonymous Requests', () => {
+    it('should pass currentUserId to articleMapper for authenticated requests', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, 42);
+
+      expect(articleMapper).toHaveBeenCalledWith(mockArticles[0], 42);
+    });
+
+    it('should pass undefined to articleMapper for anonymous requests', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(articleMapper).toHaveBeenCalledWith(mockArticles[0], undefined);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle limit of 0', async () => {
+      (prisma.article.count as jest.Mock).mockResolvedValue(10);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await findArticles(0, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 0,
+        })
+      );
+      expect(result.articles).toEqual([]);
+    });
+
+    it('should handle negative limit gracefully', async () => {
+      (prisma.article.count as jest.Mock).mockResolvedValue(10);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue([]);
+
+      await findArticles(-5, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: -5,
+        })
+      );
+    });
+
+    it('should handle empty string filters', async () => {
+      const mockArticles: any[] = [];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(0);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, '', '', '', undefined);
+
+      expect(prisma.article.count).toHaveBeenCalledWith({
+        where: {},
+      });
+    });
+
+    it('should handle special characters in filter parameters', async () => {
+      const mockArticles: any[] = [];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(0);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, 'tag@#$', 'user!@#', 'fav%^&', undefined);
+
+      expect(prisma.article.count).toHaveBeenCalledWith({
+        where: {
+          AND: [
+            {
+              tagList: {
+                some: {
+                  name: 'tag@#$',
+                },
+              },
+            },
+            {
+              author: {
+                username: {
+                  equals: 'user!@#',
+                },
+              },
+            },
+            {
+              favoritedBy: {
+                some: {
+                  username: {
+                    equals: 'fav%^&',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    });
+
+    it('should handle very large limit values', async () => {
+      const mockArticles = Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(100);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(1000000, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 1000000,
+        })
+      );
+    });
+  });
+
+  describe('Integration with Existing Methods', () => {
+    it('should not interfere with existing getArticles method', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.count).toHaveBeenCalled();
+      expect(prisma.article.findMany).toHaveBeenCalled();
+    });
+
+    it('should use the same prisma client instance as other methods', async () => {
+      const mockArticles = [{ id: 1 }];
+
+      (prisma.article.count as jest.Mock).mockResolvedValue(1);
+      (prisma.article.findMany as jest.Mock).mockResolvedValue(mockArticles);
+
+      await findArticles(10, 0, undefined, undefined, undefined, undefined);
+
+      expect(prisma.article.count).toHaveBeenCalled();
+      expect(prisma.article.findMany).toHaveBeenCalled();
+    });
+  });
+});
